@@ -7,6 +7,7 @@ import (
 
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/hashicorp/consul/acl"
 	"github.com/hashicorp/consul/lib"
 )
 
@@ -227,7 +228,7 @@ type IssuedCert struct {
 	ValidBefore time.Time
 
 	// EnterpriseMeta is the Consul Enterprise specific metadata
-	EnterpriseMeta
+	acl.EnterpriseMeta
 
 	RaftIndex
 }

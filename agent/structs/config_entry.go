@@ -65,7 +65,7 @@ type ConfigEntry interface {
 	CanWrite(acl.Authorizer) error
 
 	GetMeta() map[string]string
-	GetEnterpriseMeta() *EnterpriseMeta
+	GetEnterpriseMeta() *acl.EnterpriseMeta
 	GetRaftIndex() *RaftIndex
 }
 
@@ -95,8 +95,8 @@ type ServiceConfigEntry struct {
 	ExternalSNI      string                 `json:",omitempty" alias:"external_sni"`
 	UpstreamConfig   *UpstreamConfiguration `json:",omitempty" alias:"upstream_config"`
 
-	Meta           map[string]string `json:",omitempty"`
-	EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
+	Meta               map[string]string `json:",omitempty"`
+	acl.EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
 	RaftIndex
 }
 
@@ -204,7 +204,7 @@ func (e *ServiceConfigEntry) GetRaftIndex() *RaftIndex {
 	return &e.RaftIndex
 }
 
-func (e *ServiceConfigEntry) GetEnterpriseMeta() *EnterpriseMeta {
+func (e *ServiceConfigEntry) GetEnterpriseMeta() *acl.EnterpriseMeta {
 	if e == nil {
 		return nil
 	}
@@ -254,8 +254,8 @@ type ProxyConfigEntry struct {
 	MeshGateway      MeshGatewayConfig      `json:",omitempty" alias:"mesh_gateway"`
 	Expose           ExposeConfig           `json:",omitempty"`
 
-	Meta           map[string]string `json:",omitempty"`
-	EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
+	Meta               map[string]string `json:",omitempty"`
+	acl.EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
 	RaftIndex
 }
 
@@ -325,7 +325,7 @@ func (e *ProxyConfigEntry) GetRaftIndex() *RaftIndex {
 	return &e.RaftIndex
 }
 
-func (e *ProxyConfigEntry) GetEnterpriseMeta() *EnterpriseMeta {
+func (e *ProxyConfigEntry) GetEnterpriseMeta() *acl.EnterpriseMeta {
 	if e == nil {
 		return nil
 	}
@@ -547,7 +547,7 @@ type ConfigEntryQuery struct {
 	Name       string
 	Datacenter string
 
-	EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
+	acl.EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
 	QueryOptions
 }
 
@@ -593,7 +593,7 @@ type ConfigEntryListAllRequest struct {
 	Kinds      []string
 	Datacenter string
 
-	EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
+	acl.EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
 	QueryOptions
 }
 
@@ -621,7 +621,7 @@ type ServiceConfigRequest struct {
 	// uniquely identify a service.
 	Upstreams []string
 
-	EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
+	acl.EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
 	QueryOptions
 }
 
@@ -646,7 +646,7 @@ func (r *ServiceConfigRequest) CacheInfo() cache.RequestInfo {
 	// and change it.
 	v, err := hashstructure.Hash(struct {
 		Name              string
-		EnterpriseMeta    EnterpriseMeta
+		EnterpriseMeta    acl.EnterpriseMeta
 		Upstreams         []string    `hash:"set"`
 		UpstreamIDs       []ServiceID `hash:"set"`
 		MeshGatewayConfig MeshGatewayConfig
@@ -675,7 +675,7 @@ type UpstreamConfig struct {
 	// Name is only accepted within a service-defaults config entry.
 	Name string `json:",omitempty"`
 	// EnterpriseMeta is only accepted within a service-defaults config entry.
-	EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
+	acl.EnterpriseMeta `hcl:",squash" mapstructure:",squash"`
 
 	// EnvoyListenerJSON is a complete override ("escape hatch") for the upstream's
 	// listener.
@@ -765,10 +765,10 @@ func (cfg UpstreamConfig) MergeInto(dst map[string]interface{}) {
 func (cfg *UpstreamConfig) NormalizeWithoutName() error {
 	return cfg.normalize(false, nil)
 }
-func (cfg *UpstreamConfig) NormalizeWithName(entMeta *EnterpriseMeta) error {
+func (cfg *UpstreamConfig) NormalizeWithName(entMeta *acl.EnterpriseMeta) error {
 	return cfg.normalize(true, entMeta)
 }
-func (cfg *UpstreamConfig) normalize(named bool, entMeta *EnterpriseMeta) error {
+func (cfg *UpstreamConfig) normalize(named bool, entMeta *acl.EnterpriseMeta) error {
 	if named {
 		// If the upstream namespace is omitted it inherits that of the enclosing
 		// config entry.
