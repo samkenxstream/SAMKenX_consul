@@ -3,12 +3,14 @@ package subscribe
 import (
 	"context"
 	"errors"
-	"github.com/golang/protobuf/ptypes/duration"
-	"github.com/hashicorp/consul/proto/pbcommon"
 	"io"
 	"net"
 	"testing"
 	"time"
+
+	"github.com/golang/protobuf/ptypes/duration"
+
+	"github.com/hashicorp/consul/proto/pbcommon"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -321,13 +323,13 @@ func assertDeepEqual(t *testing.T, x, y interface{}, opts ...cmp.Option) {
 
 type testBackend struct {
 	store       *state.Store
-	authorizer  func(token string, entMeta *structs.EnterpriseMeta) acl.Authorizer
+	authorizer  func(token string, entMeta *acl.EnterpriseMeta) acl.Authorizer
 	forwardConn *gogrpc.ClientConn
 }
 
 func (b testBackend) ResolveTokenAndDefaultMeta(
 	token string,
-	entMeta *structs.EnterpriseMeta,
+	entMeta *acl.EnterpriseMeta,
 	_ *acl.AuthorizerContext,
 ) (acl.Authorizer, error) {
 	return b.authorizer(token, entMeta), nil
@@ -350,7 +352,7 @@ func newTestBackend() (*testBackend, error) {
 		return nil, err
 	}
 	store := state.NewStateStoreWithEventPublisher(gc)
-	allowAll := func(string, *structs.EnterpriseMeta) acl.Authorizer {
+	allowAll := func(string, *acl.EnterpriseMeta) acl.Authorizer {
 		return acl.AllowAll()
 	}
 	return &testBackend{store: store, authorizer: allowAll}, nil
@@ -671,7 +673,7 @@ node "node1" {
 		require.Equal(t, acl.Deny, authorizer.NodeRead("denied", nil))
 
 		// TODO: is there any easy way to do this with the acl package?
-		backend.authorizer = func(tok string, _ *structs.EnterpriseMeta) acl.Authorizer {
+		backend.authorizer = func(tok string, _ *acl.EnterpriseMeta) acl.Authorizer {
 			if tok == token {
 				return authorizer
 			}
@@ -867,7 +869,7 @@ node "node1" {
 		require.Equal(t, acl.Deny, authorizer.NodeRead("denied", nil))
 
 		// TODO: is there any easy way to do this with the acl package?
-		backend.authorizer = func(tok string, _ *structs.EnterpriseMeta) acl.Authorizer {
+		backend.authorizer = func(tok string, _ *acl.EnterpriseMeta) acl.Authorizer {
 			if tok == token {
 				return authorizer
 			}

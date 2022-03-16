@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 
+	"github.com/hashicorp/consul/acl"
 	"github.com/hashicorp/consul/agent/cache"
 	cachetype "github.com/hashicorp/consul/agent/cache-types"
 	"github.com/hashicorp/consul/agent/connect"
@@ -243,7 +244,7 @@ func TestManager_BasicLifecycle(t *testing.T) {
 					IntentionsSet:          true,
 				},
 				Datacenter: "dc1",
-				Locality:   GatewayKey{Datacenter: "dc1", Partition: structs.PartitionOrDefault("")},
+				Locality:   GatewayKey{Datacenter: "dc1", Partition: acl.PartitionOrDefault("")},
 			},
 		},
 		{
@@ -302,7 +303,7 @@ func TestManager_BasicLifecycle(t *testing.T) {
 					IntentionsSet:          true,
 				},
 				Datacenter: "dc1",
-				Locality:   GatewayKey{Datacenter: "dc1", Partition: structs.PartitionOrDefault("")},
+				Locality:   GatewayKey{Datacenter: "dc1", Partition: acl.PartitionOrDefault("")},
 			},
 		},
 	}

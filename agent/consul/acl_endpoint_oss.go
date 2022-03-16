@@ -4,6 +4,7 @@
 package consul
 
 import (
+	"github.com/hashicorp/consul/acl"
 	"github.com/hashicorp/consul/agent/consul/authmethod"
 	"github.com/hashicorp/consul/agent/structs"
 )
@@ -34,6 +35,6 @@ func enterpriseAuthMethodValidation(method *structs.ACLAuthMethod, validator aut
 func computeTargetEnterpriseMeta(
 	method *structs.ACLAuthMethod,
 	verifiedIdentity *authmethod.Identity,
-) (*structs.EnterpriseMeta, error) {
-	return &structs.EnterpriseMeta{}, nil
+) (*acl.EnterpriseMeta, error) {
+	return &acl.EnterpriseMeta{}, nil
 }

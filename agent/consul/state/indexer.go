@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/consul/acl"
 	"github.com/hashicorp/consul/agent/structs"
 )
 
@@ -139,7 +140,7 @@ func (b *indexBuilder) Bytes() []byte {
 }
 
 // singleValueID is an interface that may be implemented by any type that should
-// be indexed by a single ID and a structs.EnterpriseMeta to scope the ID.
+// be indexed by a single ID and a acl.EnterpriseMeta to scope the ID.
 type singleValueID interface {
 	IDValue() string
 	PartitionOrDefault() string
@@ -196,16 +197,16 @@ func (b *indexBuilder) Bool(v bool) {
 
 type TimeQuery struct {
 	Value time.Time
-	structs.EnterpriseMeta
+	acl.EnterpriseMeta
 }
 
-// NamespaceOrDefault exists because structs.EnterpriseMeta uses a pointer
+// NamespaceOrDefault exists because acl.EnterpriseMeta uses a pointer
 // receiver for this method. Remove once that is fixed.
 func (q TimeQuery) NamespaceOrDefault() string {
 	return q.EnterpriseMeta.NamespaceOrDefault()
 }
 
-// PartitionOrDefault exists because structs.EnterpriseMeta uses a pointer
+// PartitionOrDefault exists because acl.EnterpriseMeta uses a pointer
 // receiver for this method. Remove once that is fixed.
 func (q TimeQuery) PartitionOrDefault() string {
 	return q.EnterpriseMeta.PartitionOrDefault()

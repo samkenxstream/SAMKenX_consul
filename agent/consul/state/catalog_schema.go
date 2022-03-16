@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/go-memdb"
 
+	"github.com/hashicorp/consul/acl"
 	"github.com/hashicorp/consul/agent/structs"
 )
 
@@ -589,16 +590,16 @@ type upstreamDownstream struct {
 type NodeCheckQuery struct {
 	Node    string
 	CheckID string
-	structs.EnterpriseMeta
+	acl.EnterpriseMeta
 }
 
-// NamespaceOrDefault exists because structs.EnterpriseMeta uses a pointer
+// NamespaceOrDefault exists because acl.EnterpriseMeta uses a pointer
 // receiver for this method. Remove once that is fixed.
 func (q NodeCheckQuery) NamespaceOrDefault() string {
 	return q.EnterpriseMeta.NamespaceOrDefault()
 }
 
-// PartitionOrDefault exists because structs.EnterpriseMeta uses a pointer
+// PartitionOrDefault exists because acl.EnterpriseMeta uses a pointer
 // receiver for this method. Remove once that is fixed.
 func (q NodeCheckQuery) PartitionOrDefault() string {
 	return q.EnterpriseMeta.PartitionOrDefault()
@@ -709,16 +710,16 @@ func kindServiceNameTableSchema() *memdb.TableSchema {
 type KindServiceNameQuery struct {
 	Kind structs.ServiceKind
 	Name string
-	structs.EnterpriseMeta
+	acl.EnterpriseMeta
 }
 
-// NamespaceOrDefault exists because structs.EnterpriseMeta uses a pointer
+// NamespaceOrDefault exists because acl.EnterpriseMeta uses a pointer
 // receiver for this method. Remove once that is fixed.
 func (q KindServiceNameQuery) NamespaceOrDefault() string {
 	return q.EnterpriseMeta.NamespaceOrDefault()
 }
 
-// PartitionOrDefault exists because structs.EnterpriseMeta uses a pointer
+// PartitionOrDefault exists because acl.EnterpriseMeta uses a pointer
 // receiver for this method. Remove once that is fixed.
 func (q KindServiceNameQuery) PartitionOrDefault() string {
 	return q.EnterpriseMeta.PartitionOrDefault()
