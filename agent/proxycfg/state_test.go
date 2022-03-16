@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/hashicorp/consul/acl"
 	"github.com/hashicorp/consul/agent/cache"
 	cachetype "github.com/hashicorp/consul/agent/cache-types"
 	"github.com/hashicorp/consul/agent/consul/discoverychain"
@@ -2549,7 +2550,7 @@ func Test_hostnameEndpoints(t *testing.T) {
 	cases := []testCase{
 		{
 			name:     "same locality and no LAN hostname endpoints",
-			localKey: GatewayKey{Datacenter: "dc1", Partition: structs.PartitionOrDefault("")},
+			localKey: GatewayKey{Datacenter: "dc1", Partition: acl.PartitionOrDefault("")},
 			nodes: structs.CheckServiceNodes{
 				{
 					Node: &structs.Node{
@@ -2576,7 +2577,7 @@ func Test_hostnameEndpoints(t *testing.T) {
 		},
 		{
 			name:     "same locality and one LAN hostname endpoint",
-			localKey: GatewayKey{Datacenter: "dc1", Partition: structs.PartitionOrDefault("")},
+			localKey: GatewayKey{Datacenter: "dc1", Partition: acl.PartitionOrDefault("")},
 			nodes: structs.CheckServiceNodes{
 				{
 					Node: &structs.Node{
@@ -2614,7 +2615,7 @@ func Test_hostnameEndpoints(t *testing.T) {
 		},
 		{
 			name:     "different locality and one WAN hostname endpoint",
-			localKey: GatewayKey{Datacenter: "dc2", Partition: structs.PartitionOrDefault("")},
+			localKey: GatewayKey{Datacenter: "dc2", Partition: acl.PartitionOrDefault("")},
 			nodes: structs.CheckServiceNodes{
 				{
 					Node: &structs.Node{
