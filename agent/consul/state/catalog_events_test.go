@@ -123,11 +123,10 @@ func TestServiceHealthSnapshot(t *testing.T) {
 	err = store.EnsureRegistration(counter.Next(), testServiceRegistration(t, "web", regNode2))
 	require.NoError(t, err)
 
-	fn := serviceHealthSnapshot((*readDB)(store.db.db), topicServiceHealth)
 	buf := &snapshotAppender{}
-	req := stream.SubscribeRequest{Key: "web"}
+	req := stream.SubscribeRequest{Topic: EventTopicServiceHealth, Key: "web"}
 
-	idx, err := fn(req, buf)
+	idx, err := store.ServiceHealthSnapshot(req, buf)
 	require.NoError(t, err)
 	require.Equal(t, counter.Last(), idx)
 
@@ -200,11 +199,10 @@ func TestServiceHealthSnapshot_ConnectTopic(t *testing.T) {
 	err = store.EnsureRegistration(counter.Next(), testServiceRegistration(t, "tgate1", regTerminatingGateway))
 	require.NoError(t, err)
 
-	fn := serviceHealthSnapshot((*readDB)(store.db.db), topicServiceHealthConnect)
 	buf := &snapshotAppender{}
-	req := stream.SubscribeRequest{Key: "web", Topic: topicServiceHealthConnect}
+	req := stream.SubscribeRequest{Key: "web", Topic: EventTopicServiceHealthConnect}
 
-	idx, err := fn(req, buf)
+	idx, err := store.ServiceHealthSnapshot(req, buf)
 	require.NoError(t, err)
 	require.Equal(t, counter.Last(), idx)
 
@@ -1796,7 +1794,7 @@ func evServiceTermingGateway(name string) func(e *stream.Event) error {
 			}
 		}
 
-		if e.Topic == topicServiceHealthConnect {
+		if e.Topic == EventTopicServiceHealthConnect {
 			payload := e.Payload.(EventPayloadCheckServiceNode)
 			payload.overrideKey = name
 			e.Payload = payload
@@ -2149,7 +2147,7 @@ func evConnectNative(e *stream.Event) error {
 // depending on which topic they are published to and they determine this from
 // the event.
 func evConnectTopic(e *stream.Event) error {
-	e.Topic = topicServiceHealthConnect
+	e.Topic = EventTopicServiceHealthConnect
 	return nil
 }
 
@@ -2188,7 +2186,7 @@ func evSidecar(e *stream.Event) error {
 		csn.Checks[1].ServiceName = svc + "_sidecar_proxy"
 	}
 
-	if e.Topic == topicServiceHealthConnect {
+	if e.Topic == EventTopicServiceHealthConnect {
 		payload := e.Payload.(EventPayloadCheckServiceNode)
 		payload.overrideKey = svc
 		e.Payload = payload
@@ -2291,7 +2289,7 @@ func evRenameService(e *stream.Event) error {
 	taggedAddr.Address = "240.0.0.2"
 	csn.Service.TaggedAddresses[structs.TaggedAddressVirtualIP] = taggedAddr
 
-	if e.Topic == topicServiceHealthConnect {
+	if e.Topic == EventTopicServiceHealthConnect {
 		payload := e.Payload.(EventPayloadCheckServiceNode)
 		payload.overrideKey = csn.Service.Proxy.DestinationServiceName
 		e.Payload = payload
@@ -2403,7 +2401,7 @@ func newTestEventServiceHealthRegister(index uint64, nodeNum int, svc string) st
 	addr := fmt.Sprintf("10.10.%d.%d", nodeNum/256, nodeNum%256)
 
 	return stream.Event{
-		Topic: topicServiceHealth,
+		Topic: EventTopicServiceHealth,
 		Index: index,
 		Payload: EventPayloadCheckServiceNode{
 			Op: pbsubscribe.CatalogOp_Register,
@@ -2474,7 +2472,7 @@ func newTestEventServiceHealthRegister(index uint64, nodeNum int, svc string) st
 // adding too many options to callers.
 func newTestEventServiceHealthDeregister(index uint64, nodeNum int, svc string) stream.Event {
 	return stream.Event{
-		Topic: topicServiceHealth,
+		Topic: EventTopicServiceHealth,
 		Index: index,
 		Payload: EventPayloadCheckServiceNode{
 			Op: pbsubscribe.CatalogOp_Deregister,

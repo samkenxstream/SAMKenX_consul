@@ -50,14 +50,13 @@ func TestCARootsEvents(t *testing.T) {
 
 func TestCARootsSnapshot(t *testing.T) {
 	store := testStateStore(t)
-	fn := caRootsSnapshot((*readDB)(store.db.db))
 
 	var req stream.SubscribeRequest
 
 	t.Run("no roots", func(t *testing.T) {
 		buf := &snapshotAppender{}
 
-		idx, err := fn(req, buf)
+		idx, err := store.CARootsSnapshot(req, buf)
 		require.NoError(t, err)
 		require.Equal(t, uint64(0), idx)
 
@@ -76,7 +75,7 @@ func TestCARootsSnapshot(t *testing.T) {
 		_, err := store.CARootSetCAS(1, 0, structs.CARoots{root})
 		require.NoError(t, err)
 
-		idx, err := fn(req, buf)
+		idx, err := store.CARootsSnapshot(req, buf)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), idx)
 
