@@ -1733,7 +1733,7 @@ func rpcBlockingQueryTestHarness(
 				return
 			case err := <-errCh:
 				if err != nil {
-					t.Errorf("[%d] unexpected error: %w", i, err)
+					t.Errorf("[%d] unexpected error: %v", i, err)
 					return
 				}
 			}
