@@ -1,7 +1,6 @@
 package state
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/hashicorp/go-memdb"
@@ -58,7 +57,7 @@ type changeTrackerDB struct {
 
 type EventPublisher interface {
 	Publish([]stream.Event)
-	Run(context.Context)
+	RegisterHandler(stream.Topic, stream.SnapshotFunc) error
 	Subscribe(*stream.SubscribeRequest) (*stream.Subscription, error)
 }
 
@@ -200,9 +199,16 @@ func processDBChanges(tx ReadTxn, changes Changes) ([]stream.Event, error) {
 	return events, nil
 }
 
-func newSnapshotHandlers(db ReadDB) stream.SnapshotHandlers {
-	return stream.SnapshotHandlers{
-		topicServiceHealth:        serviceHealthSnapshot(db, topicServiceHealth),
-		topicServiceHealthConnect: serviceHealthSnapshot(db, topicServiceHealthConnect),
+func registerSnapshotHandlers(db ReadDB, publisher EventPublisher) error {
+	err := publisher.RegisterHandler(topicServiceHealth, serviceHealthSnapshot(db, topicServiceHealth))
+	if err != nil {
+		return err
 	}
+
+	err = publisher.RegisterHandler(topicServiceHealthConnect, serviceHealthSnapshot(db, topicServiceHealthConnect))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

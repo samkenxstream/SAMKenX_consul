@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/consul/agent/config"
 	"github.com/hashicorp/consul/agent/consul"
 	"github.com/hashicorp/consul/agent/consul/fsm"
+	"github.com/hashicorp/consul/agent/consul/stream"
 	"github.com/hashicorp/consul/agent/consul/usagemetrics"
 	"github.com/hashicorp/consul/agent/grpc"
 	"github.com/hashicorp/consul/agent/grpc/resolver"
@@ -149,6 +150,9 @@ func NewBaseDeps(configLoader ConfigLoader, logOut io.Writer) (BaseDeps, error) 
 	if err != nil {
 		return d, err
 	}
+
+	// create the EventPublisher to be used throughout Consul
+	d.EventPublisher = stream.NewEventPublisher(10 * time.Second)
 
 	return d, nil
 }

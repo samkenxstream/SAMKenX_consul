@@ -4,6 +4,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"google.golang.org/grpc"
 
+	"github.com/hashicorp/consul/agent/consul/stream"
 	"github.com/hashicorp/consul/agent/pool"
 	"github.com/hashicorp/consul/agent/router"
 	"github.com/hashicorp/consul/agent/token"
@@ -18,6 +19,7 @@ type Deps struct {
 	ConnPool        *pool.ConnPool
 	GRPCConnPool    GRPCClientConner
 	LeaderForwarder LeaderForwarder
+	EventPublisher  *stream.EventPublisher
 	EnterpriseDeps
 }
 

@@ -335,7 +335,10 @@ func newTestBackend() (*testBackend, error) {
 	if err != nil {
 		return nil, err
 	}
-	store := state.NewStateStoreWithEventPublisher(gc)
+
+	publisher := stream.NewEventPublisher(10 * time.Second)
+
+	store := state.NewStateStoreWithEventPublisher(gc, publisher)
 	allowAll := func(string, *structs.EnterpriseMeta) acl.Authorizer {
 		return acl.AllowAll()
 	}
@@ -1052,12 +1055,12 @@ func newPayloadEvents(items ...stream.Event) *stream.PayloadEvents {
 func newEventFromSubscription(t *testing.T, index uint64) stream.Event {
 	t.Helper()
 
-	handlers := map[stream.Topic]stream.SnapshotFunc{
-		pbsubscribe.Topic_ServiceHealthConnect: func(stream.SubscribeRequest, stream.SnapshotAppender) (index uint64, err error) {
-			return 1, nil
-		},
+	serviceHealthConnectHandler := func(stream.SubscribeRequest, stream.SnapshotAppender) (index uint64, err error) {
+		return 1, nil
 	}
-	ep := stream.NewEventPublisher(handlers, 0)
+	
+	ep := stream.NewEventPublisher(0)
+	ep.RegisterHandler(pbsubscribe.Topic_ServiceHealthConnect, serviceHealthConnectHandler)
 	req := &stream.SubscribeRequest{Topic: pbsubscribe.Topic_ServiceHealthConnect, Index: index}
 
 	sub, err := ep.Subscribe(req)

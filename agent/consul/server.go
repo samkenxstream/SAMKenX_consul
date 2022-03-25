@@ -36,6 +36,7 @@ import (
 	"github.com/hashicorp/consul/agent/consul/authmethod/ssoauth"
 	"github.com/hashicorp/consul/agent/consul/fsm"
 	"github.com/hashicorp/consul/agent/consul/state"
+	"github.com/hashicorp/consul/agent/consul/stream"
 	"github.com/hashicorp/consul/agent/consul/usagemetrics"
 	"github.com/hashicorp/consul/agent/consul/wanfed"
 	agentgrpc "github.com/hashicorp/consul/agent/grpc"
@@ -386,8 +387,10 @@ func NewServer(config *Config, flat Deps) (*Server, error) {
 		shutdownCh:              shutdownCh,
 		leaderRoutineManager:    routine.NewManager(logger.Named(logging.Leader)),
 		aclAuthMethodValidators: authmethod.NewCache(),
-		fsm:                     newFSMFromConfig(flat.Logger, gc, config),
+		fsm:                     newFSMFromConfig(flat.Logger, gc, config, flat.EventPublisher),
 	}
+
+	go flat.EventPublisher.Run(&lib.StopChannelContext{StopCh: s.shutdownCh})
 
 	if s.config.ConnectMeshGatewayWANFederationEnabled {
 		s.gatewayLocator = NewGatewayLocator(
@@ -630,11 +633,11 @@ func NewServer(config *Config, flat Deps) (*Server, error) {
 	return s, nil
 }
 
-func newFSMFromConfig(logger hclog.Logger, gc *state.TombstoneGC, config *Config) *fsm.FSM {
+func newFSMFromConfig(logger hclog.Logger, gc *state.TombstoneGC, config *Config, publisher *stream.EventPublisher) *fsm.FSM {
 	deps := fsm.Deps{Logger: logger}
 	if config.RPCConfig.EnableStreaming {
 		deps.NewStateStore = func() *state.Store {
-			return state.NewStateStoreWithEventPublisher(gc)
+			return state.NewStateStoreWithEventPublisher(gc, publisher)
 		}
 		return fsm.NewFromDeps(deps)
 	}
