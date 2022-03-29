@@ -241,16 +241,15 @@ func (h *Health) ServiceNodes(args *structs.ServiceSpecificRequest, reply *struc
 				return err
 			}
 
-			reply.Index, reply.Nodes = index, nodes
 			if len(args.NodeMetaFilters) > 0 {
-				reply.Nodes = nodeMetaFilter(args.NodeMetaFilters, reply.Nodes)
+				nodes = nodeMetaFilter(args.NodeMetaFilters, nodes)
 			}
 
-			raw, err := filter.Execute(reply.Nodes)
+			raw, err := filter.Execute(nodes)
 			if err != nil {
 				return err
 			}
-			reply.Nodes = raw.(structs.CheckServiceNodes)
+			nodes = raw.(structs.CheckServiceNodes)
 
 			// Note: we filter the results with ACLs *after* applying the user-supplied
 			// bexpr filter, to ensure QueryMeta.ResultsFilteredByACLs does not include
@@ -259,7 +258,12 @@ func (h *Health) ServiceNodes(args *structs.ServiceSpecificRequest, reply *struc
 				return err
 			}
 
-			return h.srv.sortNodesByDistanceFrom(args.Source, reply.Nodes)
+			if err := h.srv.sortNodesByDistanceFrom(args.Source, nodes); err != nil {
+				return err
+			}
+
+			reply.Index, reply.Nodes = index, nodes
+			return nil
 		})
 
 	// Provide some metrics
