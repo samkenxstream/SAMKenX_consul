@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 // All of the configuration here is shared between buildtime and runtime and
 // is therefore added to ember's <meta> tag in the actual app, if the
 // configuration is for buildtime only you should probably just use
@@ -12,7 +17,7 @@ const repositoryYear = utils.repositoryYear;
 const repositorySHA = utils.repositorySHA;
 const binaryVersion = utils.binaryVersion(repositoryRoot);
 
-module.exports = function(environment, $ = process.env) {
+module.exports = function (environment, $ = process.env) {
   // available environments
   // ['production', 'development', 'staging', 'test'];
   const env = utils.env($);
@@ -26,7 +31,7 @@ module.exports = function(environment, $ = process.env) {
     historySupportMiddleware: true,
 
     torii: {
-      disableRedirectInitializer: false
+      disableRedirectInitializer: false,
     },
 
     EmberENV: {
@@ -82,9 +87,12 @@ module.exports = function(environment, $ = process.env) {
       ACLsEnabled: false,
       NamespacesEnabled: false,
       SSOEnabled: false,
+      PeeringEnabled: false,
       PartitionsEnabled: false,
+      HCPEnabled: false,
       LocalDatacenter: env('CONSUL_DATACENTER_LOCAL', 'dc1'),
       PrimaryDatacenter: env('CONSUL_DATACENTER_PRIMARY', 'dc1'),
+      APIPrefix: env('CONSUL_API_PREFIX', ''),
     },
 
     // Static variables used in multiple places throughout the UI
@@ -93,6 +101,7 @@ module.exports = function(environment, $ = process.env) {
     CONSUL_DOCS_URL: 'https://www.consul.io/docs',
     CONSUL_DOCS_LEARN_URL: 'https://learn.hashicorp.com',
     CONSUL_DOCS_API_URL: 'https://www.consul.io/api',
+    CONSUL_DOCS_DEVELOPER_URL: 'https://developer.hashicorp.com/consul/docs',
     CONSUL_COPYRIGHT_URL: 'https://www.hashicorp.com',
   });
   switch (true) {
@@ -105,9 +114,13 @@ module.exports = function(environment, $ = process.env) {
           ACLsEnabled: env('CONSUL_ACLS_ENABLED', true),
           NamespacesEnabled: env('CONSUL_NSPACES_ENABLED', false),
           SSOEnabled: env('CONSUL_SSO_ENABLED', false),
+          // in testing peering feature is on by default
+          PeeringEnabled: env('CONSUL_PEERINGS_ENABLED', true),
           PartitionsEnabled: env('CONSUL_PARTITIONS_ENABLED', false),
+          HCPEnabled: env('CONSUL_HCP_ENABLED', false),
           LocalDatacenter: env('CONSUL_DATACENTER_LOCAL', 'dc1'),
           PrimaryDatacenter: env('CONSUL_DATACENTER_PRIMARY', 'dc1'),
+          APIPrefix: env('CONSUL_API_PREFIX', ''),
         },
 
         '@hashicorp/ember-cli-api-double': {
@@ -115,6 +128,7 @@ module.exports = function(environment, $ = process.env) {
           enabled: true,
           endpoints: {
             '/v1': '/mock-api/v1',
+            '/prefixed-api': '/mock-api/prefixed-api',
           },
         },
         APP: Object.assign({}, ENV.APP, {
@@ -130,18 +144,19 @@ module.exports = function(environment, $ = process.env) {
           autoboot: false,
         }),
       });
+
       break;
     case environment === 'development':
       ENV = Object.assign({}, ENV, {
         torii: {
-          disableRedirectInitializer: true
+          disableRedirectInitializer: true,
         },
       });
       break;
     case environment === 'staging':
       ENV = Object.assign({}, ENV, {
         torii: {
-          disableRedirectInitializer: true
+          disableRedirectInitializer: true,
         },
         // On staging sites everything defaults to being turned on by
         // different staging sites can be built with certain features disabled
@@ -154,9 +169,12 @@ module.exports = function(environment, $ = process.env) {
           ACLsEnabled: env('CONSUL_ACLS_ENABLED', true),
           NamespacesEnabled: env('CONSUL_NSPACES_ENABLED', true),
           SSOEnabled: env('CONSUL_SSO_ENABLED', true),
+          PeeringEnabled: env('CONSUL_PEERINGS_ENABLED', true),
           PartitionsEnabled: env('CONSUL_PARTITIONS_ENABLED', true),
+          HCPEnabled: env('CONSUL_HCP_ENABLED', false),
           LocalDatacenter: env('CONSUL_DATACENTER_LOCAL', 'dc1'),
           PrimaryDatacenter: env('CONSUL_DATACENTER_PRIMARY', 'dc1'),
+          APIPrefix: env('CONSUL_API_PREFIX', ''),
         },
 
         '@hashicorp/ember-cli-api-double': {
@@ -171,7 +189,9 @@ module.exports = function(environment, $ = process.env) {
       ENV = Object.assign({}, ENV, {
         // in production operatorConfig is populated at consul runtime from
         // operator configuration
-        operatorConfig: {},
+        operatorConfig: {
+          APIPrefix: '',
+        },
       });
       break;
   }

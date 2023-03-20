@@ -19,7 +19,9 @@ type Node struct {
 	Meta            map[string]string
 	CreateIndex     uint64
 	ModifyIndex     uint64
-	Partition       string `json:",omitempty"`
+	Partition       string    `json:",omitempty"`
+	PeerName        string    `json:",omitempty"`
+	Locality        *Locality `json:",omitempty"`
 }
 
 type ServiceAddress struct {
@@ -44,6 +46,7 @@ type CatalogService struct {
 	ServiceWeights           Weights
 	ServiceEnableTagOverride bool
 	ServiceProxy             *AgentServiceConnectProxyConfig
+	ServiceLocality          *Locality `json:",omitempty"`
 	CreateIndex              uint64
 	Checks                   HealthChecks
 	ModifyIndex              uint64
@@ -73,6 +76,7 @@ type CatalogRegistration struct {
 	Checks          HealthChecks
 	SkipNodeUpdate  bool
 	Partition       string `json:",omitempty"`
+	Locality        *Locality
 }
 
 type CatalogDeregistration struct {

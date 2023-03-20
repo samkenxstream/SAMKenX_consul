@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import { runInDebug } from '@ember/debug';
 import require from 'require';
 import merge from 'deepmerge';
@@ -5,12 +10,12 @@ import merge from 'deepmerge';
 const doc = document;
 
 export const services = merge.all(
-  [...doc.querySelectorAll(`script[data-services]`)].map($item =>
+  [...doc.querySelectorAll(`script[data-services]`)].map(($item) =>
     JSON.parse($item.dataset[`services`])
   )
 );
 
-const inject = function(container, obj) {
+const inject = function (container, obj) {
   // inject all the things
   Object.entries(obj).forEach(([key, value]) => {
     switch (true) {
@@ -42,10 +47,10 @@ export default {
     let repositories = container
       .get('container-debug-adapter:main')
       .catalogEntriesByType('service')
-      .filter(item => item.startsWith('repository/') || item === 'ui-config');
+      .filter((item) => item.startsWith('repository/') || item === 'ui-config');
 
     // during testing we get -test files in here, filter those out but only in debug envs
-    runInDebug(() => (repositories = repositories.filter(item => !item.endsWith('-test'))));
+    runInDebug(() => (repositories = repositories.filter((item) => !item.endsWith('-test'))));
 
     // 'service' service is not returned by catalogEntriesByType, possibly
     // related to pods and the service being called 'service':
@@ -53,7 +58,7 @@ export default {
     // so push it on the end
     repositories.push('repository/service');
     //
-    repositories.forEach(item => {
+    repositories.forEach((item) => {
       const key = `service:${item}`;
       container.set(key, container.resolveRegistration(key));
     });

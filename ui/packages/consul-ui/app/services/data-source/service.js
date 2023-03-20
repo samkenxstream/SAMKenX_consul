@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Service, { inject as service } from '@ember/service';
 import { runInDebug } from '@ember/debug';
 import { proxy } from 'consul-ui/utils/dom/event-source';
@@ -44,7 +49,7 @@ export default class DataSourceService extends Service {
     // called on them, schedule any destroying to fire after the final render
     schedule('afterRender', () => {
       this._listeners.remove();
-      sources.forEach(function(item) {
+      sources.forEach(function (item) {
         item.close();
       });
       cache = null;
@@ -61,14 +66,14 @@ export default class DataSourceService extends Service {
       const source = this.open(src, ref, true);
       source.configuration.ref = ref;
       const remove = this._listeners.add(source, {
-        message: e => {
+        message: (e) => {
           remove();
           // the source only gets wrapped in the proxy
           // after the first message
           // but the proxy itself is resolve to the route
           resolve(proxy(e.target, e.data));
         },
-        error: e => {
+        error: (e) => {
           remove();
           this.close(source, ref);
           reject(e.error);
@@ -96,7 +101,7 @@ export default class DataSourceService extends Service {
     if (!(uri instanceof URI) && typeof uri !== 'string') {
       return this.unwrap(uri, ref);
     }
-    runInDebug(_ => {
+    runInDebug((_) => {
       if (!(uri instanceof URI)) {
         console.error(
           new Error(
@@ -122,7 +127,7 @@ export default class DataSourceService extends Service {
       configuration.uri = uri;
       source = provider.source(pathname, configuration);
       const remove = this._listeners.add(source, {
-        close: e => {
+        close: (e) => {
           // a close could be fired either by:
           // 1. A non-blocking query leaving the page
           // 2. A non-blocking query responding
@@ -135,7 +140,8 @@ export default class DataSourceService extends Service {
           if (
             typeof event !== 'undefined' &&
             typeof cursor !== 'undefined' &&
-            e.errors && e.errors[0].status !== '401'
+            e.errors &&
+            e.errors[0].status !== '401'
           ) {
             cache.set(uri, {
               currentEvent: event,
@@ -197,6 +203,6 @@ export default class DataSourceService extends Service {
       .filter(([key, item]) => {
         return item.readyState > 1;
       })
-      .map(item => item[0]);
+      .map((item) => item[0]);
   }
 }

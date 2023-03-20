@@ -1,7 +1,12 @@
-export default function(parseHeaders, XHR) {
-  return function(options) {
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+export default function (parseHeaders, XHR) {
+  return function (options) {
     const xhr = new (XHR || XMLHttpRequest)();
-    xhr.onreadystatechange = function() {
+    xhr.onreadystatechange = function () {
       if (this.readyState === 4) {
         const headers = parseHeaders(this.getAllResponseHeaders().split('\n'));
         if (this.status >= 200 && this.status < 400) {
@@ -27,6 +32,7 @@ export default function(parseHeaders, XHR) {
     };
     Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
     options.beforeSend(xhr);
+    xhr.withCredentials = true;
     xhr.send(options.body);
     return xhr;
   };

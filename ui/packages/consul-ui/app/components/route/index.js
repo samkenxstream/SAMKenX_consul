@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Component from '@glimmer/component';
 import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
@@ -14,7 +19,7 @@ export default class RouteComponent extends Component {
 
   constructor() {
     super(...arguments);
-    this.intlKey = this.encoder.createRegExpEncoder(templateRe, _ => _);
+    this.intlKey = this.encoder.createRegExpEncoder(templateRe, (_) => _);
   }
 
   get params() {
@@ -27,7 +32,10 @@ export default class RouteComponent extends Component {
     }
     if (this.args.name) {
       const outlet = this.routlet.outletFor(this.args.name);
-      return this.routlet.modelFor(outlet.name);
+
+      if (outlet) {
+        return this.routlet.modelFor(outlet.name);
+      }
     }
     return undefined;
   }

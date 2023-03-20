@@ -53,6 +53,62 @@ func TestNodeServiceWithName(t testing.T, name string) *NodeService {
 	}
 }
 
+const peerTrustDomain = "1c053652-8512-4373-90cf-5a7f6263a994.consul"
+
+func TestCheckNodeServiceWithNameInPeer(t testing.T, name, dc, peer, ip string, useHostname bool) CheckServiceNode {
+	service := &NodeService{
+		Kind:    ServiceKindTypical,
+		Service: name,
+		// We should not see this port number appear in most xds golden tests,
+		// because the WAN addr should typically be used.
+		Port:     9090,
+		PeerName: peer,
+		Connect: ServiceConnect{
+			PeerMeta: &PeeringServiceMeta{
+				SNI: []string{
+					name + ".default.default." + peer + ".external." + peerTrustDomain,
+				},
+				SpiffeID: []string{
+					"spiffe://" + peerTrustDomain + "/ns/default/dc/" + dc + "/svc/" + name,
+				},
+				Protocol: "tcp",
+			},
+		},
+		// This value should typically be seen in golden file output, since this is a peered service.
+		TaggedAddresses: map[string]ServiceAddress{
+			TaggedAddressWAN: {
+				Address: ip,
+				Port:    8080,
+			},
+		},
+	}
+
+	if useHostname {
+		service.TaggedAddresses = map[string]ServiceAddress{
+			TaggedAddressLAN: {
+				Address: ip,
+				Port:    443,
+			},
+			TaggedAddressWAN: {
+				Address: name + ".us-east-1.elb.notaws.com",
+				Port:    8443,
+			},
+		}
+	}
+
+	return CheckServiceNode{
+		Node: &Node{
+			ID:   "test1",
+			Node: "test1",
+			// We should not see this address appear in most xds golden tests,
+			// because the WAN addr should typically be used.
+			Address:    "1.23.45.67",
+			Datacenter: dc,
+		},
+		Service: service,
+	}
+}
+
 // TestNodeServiceProxy returns a *NodeService representing a valid
 // Connect proxy.
 func TestNodeServiceProxy(t testing.T) *NodeService {

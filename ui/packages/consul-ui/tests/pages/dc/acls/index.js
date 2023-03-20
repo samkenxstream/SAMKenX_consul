@@ -1,4 +1,9 @@
-export default function(visitable, deletable, creatable, clickable, attribute, collection) {
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+export default function (visitable, deletable, creatable, clickable, attribute, collection) {
   return creatable({
     visit: visitable('/:dc/acls'),
     acls: collection(

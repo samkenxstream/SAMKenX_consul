@@ -1,4 +1,9 @@
-export default function(visitable, clickable, attribute, collection) {
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+export default function (visitable, clickable, attribute, collection) {
   return {
     visit: visitable('/:dc/'),
     dcs: collection('[data-test-datacenter-picker]'),

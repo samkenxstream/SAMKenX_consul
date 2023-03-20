@@ -1,3 +1,8 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-License-Identifier: MPL-2.0
+}}
+
 <Route
   @name={{routeName}}
 as |route|>
@@ -90,23 +95,35 @@ as |route|>
             >
               <BlockSlot @name="header">
                 <h2>
-                  {{t 'routes.dc.auth-methods.index.empty.header'
+                  {{t 'routes.dc.acls.auth-methods.index.empty.header'
                     items=items.length
                   }}
                 </h2>
               </BlockSlot>
               <BlockSlot @name="body">
-                {{t 'routes.dc.auth-methods.index.empty.body'
+                {{t 'routes.dc.acls.auth-methods.index.empty.body'
                   items=items.length
                   htmlSafe=true
                 }}
               </BlockSlot>
               <BlockSlot @name="actions">
-                <li class="docs-link">
-                  <a href="{{env 'CONSUL_DOCS_URL'}}/security/acl/auth-methods" rel="noopener noreferrer" target="_blank">Documentation on auth methods</a>
+                <li>
+                  <Hds::Link::Standalone
+                    @text='Documentation on auth methods'
+                    @href="{{env 'CONSUL_DOCS_URL'}}/security/acl/auth-methods"
+                    @icon='docs-link'
+                    @iconPosition='trailing'
+                    @size='small'
+                  />
                 </li>
-                <li class="learn-link">
-                  <a href="{{env 'CONSUL_DOCS_API_URL'}}/acl/auth-methods.html" rel="noopener noreferrer" target="_blank">Read the API Docs</a>
+                <li>
+                  <Hds::Link::Standalone
+                    @text='Read the API Docs'
+                    @href='{{env 'CONSUL_DOCS_API_URL'}}/acl/auth-methods.html'
+                    @icon='learn-link'
+                    @iconPosition='trailing'
+                    @size='small'
+                  />
                 </li>
               </BlockSlot>
             </EmptyState>

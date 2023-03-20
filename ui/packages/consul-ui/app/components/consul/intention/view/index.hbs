@@ -1,3 +1,8 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-License-Identifier: MPL-2.0
+}}
+
 <div
   class="consul-intention-view"
   ...attributes
@@ -25,6 +30,7 @@
               Namespace=item.SourceNS
               Partition=item.SourcePartition
               Service=item.SourceName
+              PeerName=item.SourcePeer
             }}
             @nspace="-"
             @partition="-"

@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 @import './skin';
 @import './layout';
 .app-view {
@@ -10,6 +15,9 @@
 %app-view-header .title {
   @extend %app-view-title;
 }
+%app-view-title .title-left-container {
+  @extend %app-view-title-left-container;
+}
 %app-view-header .actions {
   @extend %app-view-actions;
 }
@@ -17,8 +25,7 @@
   @extend %app-view-content;
 }
 
-%app-view-actions a,
-%app-view-actions button {
+%app-view-actions a {
   @extend %button-compact;
 }
 
@@ -30,7 +37,7 @@
   width: 26px;
   height: 26px;
   cursor: pointer;
-  color: rgb(var(--tone-blue-500));
+  color: var(--token-color-foreground-action);
 }
 #toolbar-toggle {
   display: none;

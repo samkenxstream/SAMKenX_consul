@@ -2,9 +2,11 @@ package proxycfg
 
 import (
 	"errors"
+	"runtime/debug"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
+	"golang.org/x/time/rate"
 
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/tlsutil"
@@ -46,6 +48,8 @@ type CancelFunc func()
 type Manager struct {
 	ManagerConfig
 
+	rateLimiter *rate.Limiter
+
 	mu         sync.Mutex
 	proxies    map[ProxyID]*state
 	watchers   map[ProxyID]map[uint64]chan *ConfigSnapshot
@@ -75,6 +79,15 @@ type ManagerConfig struct {
 	// information to proxies that need to make intention decisions on their
 	// own.
 	IntentionDefaultAllow bool
+
+	// UpdateRateLimit controls the rate at which config snapshots are delivered
+	// when updates are received from data sources. This enables us to reduce the
+	// impact of updates to "global" resources (e.g. proxy-defaults and wildcard
+	// intentions) that could otherwise saturate system resources, and cause Raft
+	// or gossip instability.
+	//
+	// Defaults to rate.Inf (no rate limit).
+	UpdateRateLimit rate.Limit
 }
 
 // NewManager constructs a Manager.
@@ -82,12 +95,28 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 	if cfg.Source == nil || cfg.Logger == nil {
 		return nil, errors.New("all ManagerConfig fields must be provided")
 	}
+
+	if cfg.UpdateRateLimit == 0 {
+		cfg.UpdateRateLimit = rate.Inf
+	}
+
 	m := &Manager{
 		ManagerConfig: cfg,
 		proxies:       make(map[ProxyID]*state),
 		watchers:      make(map[ProxyID]map[uint64]chan *ConfigSnapshot),
+		rateLimiter:   rate.NewLimiter(cfg.UpdateRateLimit, 1),
 	}
 	return m, nil
+}
+
+// UpdateRateLimit returns the configured update rate limit (see ManagerConfig).
+func (m *Manager) UpdateRateLimit() rate.Limit {
+	return m.rateLimiter.Limit()
+}
+
+// SetUpdateRateLimit configures the update rate limit (see ManagerConfig).
+func (m *Manager) SetUpdateRateLimit(l rate.Limit) {
+	m.rateLimiter.SetLimit(l)
 }
 
 // RegisteredProxies returns a list of the proxies tracked by Manager, filtered
@@ -114,8 +143,22 @@ func (m *Manager) Register(id ProxyID, ns *structs.NodeService, source ProxySour
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	defer func() {
+		if r := recover(); r != nil {
+			m.Logger.Error("unexpected panic during service manager registration",
+				"node", id.NodeName,
+				"service", id.ServiceID,
+				"message", r,
+				"stacktrace", string(debug.Stack()),
+			)
+		}
+	}()
+	return m.register(id, ns, source, token, overwrite)
+}
+
+func (m *Manager) register(id ProxyID, ns *structs.NodeService, source ProxySource, token string, overwrite bool) error {
 	state, ok := m.proxies[id]
-	if ok {
+	if ok && !state.stoppedRunning() {
 		if state.source != source && !overwrite {
 			// Registered by a different source, leave as-is.
 			return nil
@@ -127,7 +170,7 @@ func (m *Manager) Register(id ProxyID, ns *structs.NodeService, source ProxySour
 		}
 
 		// We are updating the proxy, close its old state
-		state.Close()
+		state.Close(false)
 	}
 
 	// TODO: move to a function that translates ManagerConfig->stateConfig
@@ -143,19 +186,18 @@ func (m *Manager) Register(id ProxyID, ns *structs.NodeService, source ProxySour
 	}
 
 	var err error
-	state, err = newState(id, ns, source, token, stateConfig)
+	state, err = newState(id, ns, source, token, stateConfig, m.rateLimiter)
 	if err != nil {
 		return err
 	}
 
-	ch, err := state.Watch()
-	if err != nil {
+	if _, err = state.Watch(); err != nil {
 		return err
 	}
 	m.proxies[id] = state
 
 	// Start a goroutine that will wait for changes and broadcast them to watchers.
-	go m.notifyBroadcast(ch)
+	go m.notifyBroadcast(id, state)
 	return nil
 }
 
@@ -175,8 +217,8 @@ func (m *Manager) Deregister(id ProxyID, source ProxySource) {
 	}
 
 	// Closing state will let the goroutine we started in Register finish since
-	// watch chan is closed.
-	state.Close()
+	// watch chan is closed
+	state.Close(false)
 	delete(m.proxies, id)
 
 	// We intentionally leave potential watchers hanging here - there is no new
@@ -186,10 +228,16 @@ func (m *Manager) Deregister(id ProxyID, source ProxySource) {
 	// cleaned up naturally.
 }
 
-func (m *Manager) notifyBroadcast(ch <-chan ConfigSnapshot) {
-	// Run until ch is closed
-	for snap := range ch {
+func (m *Manager) notifyBroadcast(proxyID ProxyID, state *state) {
+	// Run until ch is closed (by a defer in state.run).
+	for snap := range state.snapCh {
 		m.notify(&snap)
+	}
+
+	// If state.run exited because of an irrecoverable error, close all of the
+	// watchers so that the consumers reconnect/retry at a higher level.
+	if state.failed() {
+		m.closeAllWatchers(proxyID)
 	}
 }
 
@@ -281,6 +329,20 @@ func (m *Manager) Watch(id ProxyID) (<-chan *ConfigSnapshot, CancelFunc) {
 	}
 }
 
+func (m *Manager) closeAllWatchers(proxyID ProxyID) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	watchers, ok := m.watchers[proxyID]
+	if !ok {
+		return
+	}
+
+	for watchID := range watchers {
+		m.closeWatchLocked(proxyID, watchID)
+	}
+}
+
 // closeWatchLocked cleans up state related to a single watcher. It assumes the
 // lock is held.
 func (m *Manager) closeWatchLocked(proxyID ProxyID, watchID uint64) {
@@ -309,7 +371,7 @@ func (m *Manager) Close() error {
 
 	// Then close all states
 	for proxyID, state := range m.proxies {
-		state.Close()
+		state.Close(false)
 		delete(m.proxies, proxyID)
 	}
 	return nil

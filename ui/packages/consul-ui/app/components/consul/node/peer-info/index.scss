@@ -1,0 +1,13 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+.consul-node-peer-info {
+  display: flex;
+  align-items: center;
+
+  .consul-node-peer-info__name {
+    margin-left: 4px;
+  }
+}

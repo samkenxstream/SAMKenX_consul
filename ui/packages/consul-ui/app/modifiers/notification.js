@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Modifier from 'ember-modifier';
 import { inject as service } from '@ember/service';
 
@@ -16,13 +21,14 @@ export default class NotificationModifier extends Modifier {
     this.element.remove();
     this.notify.clearMessages();
     if (typeof options.after === 'function') {
-      Promise.resolve().then(_ => options.after())
-        .catch(e => {
+      Promise.resolve()
+        .then((_) => options.after())
+        .catch((e) => {
           if (e.name !== 'TransitionAborted') {
             throw e;
           }
         })
-        .then(res => {
+        .then((res) => {
           this.notify.add(options);
         });
     } else {
@@ -30,7 +36,7 @@ export default class NotificationModifier extends Modifier {
     }
   }
   willDestroy() {
-    if(this.args.named.sticky) {
+    if (this.args.named.sticky) {
       this.notify.clearMessages();
     }
   }

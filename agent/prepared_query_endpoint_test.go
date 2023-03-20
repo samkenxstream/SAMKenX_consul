@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,9 +13,10 @@ import (
 
 	"github.com/hashicorp/consul/testrpc"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/types"
-	"github.com/stretchr/testify/require"
 )
 
 // MockPreparedQuery is a fake endpoint that we inject into the Consul server
@@ -92,7 +94,7 @@ func TestPreparedQuery_Create(t *testing.T) {
 					Session: "my-session",
 					Service: structs.ServiceQuery{
 						Service: "my-service",
-						Failover: structs.QueryDatacenterOptions{
+						Failover: structs.QueryFailoverOptions{
 							NearestN:    4,
 							Datacenters: []string{"dc1", "dc2"},
 						},
@@ -147,7 +149,8 @@ func TestPreparedQuery_Create(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	req, _ := http.NewRequest("POST", "/v1/query?token=my-token", body)
+	req, _ := http.NewRequest("POST", "/v1/query", body)
+	req.Header.Add("X-Consul-Token", "my-token")
 	resp := httptest.NewRecorder()
 	obj, err := a.srv.PreparedQueryGeneral(resp, req)
 	if err != nil {
@@ -233,7 +236,8 @@ func TestPreparedQuery_List(t *testing.T) {
 		}
 
 		body := bytes.NewBuffer(nil)
-		req, _ := http.NewRequest("GET", "/v1/query?token=my-token&consistent=true", body)
+		req, _ := http.NewRequest("GET", "/v1/query?consistent=true", body)
+		req.Header.Add("X-Consul-Token", "my-token")
 		resp := httptest.NewRecorder()
 		obj, err := a.srv.PreparedQueryGeneral(resp, req)
 		if err != nil {
@@ -328,7 +332,8 @@ func TestPreparedQuery_Execute(t *testing.T) {
 		}
 
 		body := bytes.NewBuffer(nil)
-		req, _ := http.NewRequest("GET", "/v1/query/my-id/execute?token=my-token&consistent=true&near=my-node&limit=5", body)
+		req, _ := http.NewRequest("GET", "/v1/query/my-id/execute?consistent=true&near=my-node&limit=5", body)
+		req.Header.Add("X-Consul-Token", "my-token")
 		resp := httptest.NewRecorder()
 		obj, err := a.srv.PreparedQuerySpecific(resp, req)
 		if err != nil {
@@ -384,7 +389,8 @@ func TestPreparedQuery_Execute(t *testing.T) {
 		}
 
 		body := bytes.NewBuffer(nil)
-		req, _ := http.NewRequest("GET", "/v1/query/my-id/execute?token=my-token&consistent=true&near=_ip&limit=5", body)
+		req, _ := http.NewRequest("GET", "/v1/query/my-id/execute?consistent=true&near=_ip&limit=5", body)
+		req.Header.Add("X-Consul-Token", "my-token")
 		req.Header.Add("X-Forwarded-For", "127.0.0.1")
 		resp := httptest.NewRecorder()
 		obj, err := a.srv.PreparedQuerySpecific(resp, req)
@@ -441,7 +447,8 @@ func TestPreparedQuery_Execute(t *testing.T) {
 		}
 
 		body := bytes.NewBuffer(nil)
-		req, _ := http.NewRequest("GET", "/v1/query/my-id/execute?token=my-token&consistent=true&near=_ip&limit=5", body)
+		req, _ := http.NewRequest("GET", "/v1/query/my-id/execute?consistent=true&near=_ip&limit=5", body)
+		req.Header.Add("X-Consul-Token", "my-token")
 		req.Header.Add("X-Forwarded-For", "198.18.0.1")
 		resp := httptest.NewRecorder()
 		obj, err := a.srv.PreparedQuerySpecific(resp, req)
@@ -459,7 +466,8 @@ func TestPreparedQuery_Execute(t *testing.T) {
 			t.Fatalf("bad: %v", r)
 		}
 
-		req, _ = http.NewRequest("GET", "/v1/query/my-id/execute?token=my-token&consistent=true&near=_ip&limit=5", body)
+		req, _ = http.NewRequest("GET", "/v1/query/my-id/execute?consistent=true&near=_ip&limit=5", body)
+		req.Header.Add("X-Consul-Token", "my-token")
 		req.Header.Add("X-Forwarded-For", "198.18.0.1, 198.19.0.1")
 		resp = httptest.NewRecorder()
 		obj, err = a.srv.PreparedQuerySpecific(resp, req)
@@ -621,9 +629,9 @@ func TestPreparedQuery_Execute(t *testing.T) {
 		req, _ := http.NewRequest("GET", "/v1/query/not-there/execute", body)
 		resp := httptest.NewRecorder()
 		_, err := a.srv.PreparedQuerySpecific(resp, req)
-		if err, ok := err.(HTTPError); ok {
-			if err.StatusCode != 404 {
-				t.Fatalf("expected status 404 but got %d", err.StatusCode)
+		if httpErr, ok := err.(HTTPError); ok {
+			if httpErr.StatusCode != 404 {
+				t.Fatalf("expected status 404 but got %d", httpErr.StatusCode)
 			}
 		} else {
 			t.Fatalf("expected HTTP error but got %v", err)
@@ -734,7 +742,8 @@ func TestPreparedQuery_Explain(t *testing.T) {
 		}
 
 		body := bytes.NewBuffer(nil)
-		req, _ := http.NewRequest("GET", "/v1/query/my-id/explain?token=my-token&consistent=true&near=my-node&limit=5", body)
+		req, _ := http.NewRequest("GET", "/v1/query/my-id/explain?consistent=true&near=my-node&limit=5", body)
+		req.Header.Add("X-Consul-Token", "my-token")
 		resp := httptest.NewRecorder()
 		obj, err := a.srv.PreparedQuerySpecific(resp, req)
 		if err != nil {
@@ -760,9 +769,9 @@ func TestPreparedQuery_Explain(t *testing.T) {
 		req, _ := http.NewRequest("GET", "/v1/query/not-there/explain", body)
 		resp := httptest.NewRecorder()
 		_, err := a.srv.PreparedQuerySpecific(resp, req)
-		if err, ok := err.(HTTPError); ok {
-			if err.StatusCode != 404 {
-				t.Fatalf("expected status 404 but got %d", err.StatusCode)
+		if httpErr, ok := err.(HTTPError); ok {
+			if httpErr.StatusCode != 404 {
+				t.Fatalf("expected status 404 but got %d", httpErr.StatusCode)
 			}
 		} else {
 			t.Fatalf("expected HTTP error but got %v", err)
@@ -827,7 +836,8 @@ func TestPreparedQuery_Get(t *testing.T) {
 		}
 
 		body := bytes.NewBuffer(nil)
-		req, _ := http.NewRequest("GET", "/v1/query/my-id?token=my-token&consistent=true", body)
+		req, _ := http.NewRequest("GET", "/v1/query/my-id?consistent=true", body)
+		req.Header.Add("X-Consul-Token", "my-token")
 		resp := httptest.NewRecorder()
 		obj, err := a.srv.PreparedQuerySpecific(resp, req)
 		if err != nil {
@@ -853,9 +863,9 @@ func TestPreparedQuery_Get(t *testing.T) {
 		req, _ := http.NewRequest("GET", "/v1/query/f004177f-2c28-83b7-4229-eacc25fe55d1", body)
 		resp := httptest.NewRecorder()
 		_, err := a.srv.PreparedQuerySpecific(resp, req)
-		if err, ok := err.(HTTPError); ok {
-			if err.StatusCode != 404 {
-				t.Fatalf("expected status 404 but got %d", err.StatusCode)
+		if httpErr, ok := err.(HTTPError); ok {
+			if httpErr.StatusCode != 404 {
+				t.Fatalf("expected status 404 but got %d", httpErr.StatusCode)
 			}
 		} else {
 			t.Fatalf("expected HTTP error but got %v", err)
@@ -883,7 +893,7 @@ func TestPreparedQuery_Update(t *testing.T) {
 					Session: "my-session",
 					Service: structs.ServiceQuery{
 						Service: "my-service",
-						Failover: structs.QueryDatacenterOptions{
+						Failover: structs.QueryFailoverOptions{
 							NearestN:    4,
 							Datacenters: []string{"dc1", "dc2"},
 						},
@@ -935,7 +945,8 @@ func TestPreparedQuery_Update(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	req, _ := http.NewRequest("PUT", "/v1/query/my-id?token=my-token", body)
+	req, _ := http.NewRequest("PUT", "/v1/query/my-id", body)
+	req.Header.Add("X-Consul-Token", "my-token")
 	resp := httptest.NewRecorder()
 	if _, err := a.srv.PreparedQuerySpecific(resp, req); err != nil {
 		t.Fatalf("err: %v", err)
@@ -987,7 +998,8 @@ func TestPreparedQuery_Delete(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	req, _ := http.NewRequest("DELETE", "/v1/query/my-id?token=my-token", body)
+	req, _ := http.NewRequest("DELETE", "/v1/query/my-id", body)
+	req.Header.Add("X-Consul-Token", "my-token")
 	resp := httptest.NewRecorder()
 	if _, err := a.srv.PreparedQuerySpecific(resp, req); err != nil {
 		t.Fatalf("err: %v", err)
@@ -1047,7 +1059,7 @@ func TestPreparedQuery_Integration(t *testing.T) {
 			},
 		}
 		var out struct{}
-		if err := a.RPC("Catalog.Register", args, &out); err != nil {
+		if err := a.RPC(context.Background(), "Catalog.Register", args, &out); err != nil {
 			t.Fatalf("err: %v", err)
 		}
 	}
@@ -1086,7 +1098,8 @@ func TestPreparedQuery_Integration(t *testing.T) {
 	// List them all.
 	{
 		body := bytes.NewBuffer(nil)
-		req, _ := http.NewRequest("GET", "/v1/query?token=root", body)
+		req, _ := http.NewRequest("GET", "/v1/query", body)
+		req.Header.Add("X-Consul-Token", "root")
 		resp := httptest.NewRecorder()
 		obj, err := a.srv.PreparedQueryGeneral(resp, req)
 		if err != nil {

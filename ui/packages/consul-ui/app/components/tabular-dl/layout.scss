@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 %tabular-dl {
   display: flex;
   flex-wrap: wrap;
@@ -24,10 +29,6 @@
   }
   dd > ul li:not(:last-of-type) {
     padding-bottom: 12px;
-  }
-  dd .copy-button button {
-    padding: 0 !important;
-    margin: 0 4px 0 0 !important;
   }
   dt.check + dd {
     padding-top: 16px;

@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Component from '@glimmer/component';
 import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
@@ -79,7 +84,9 @@ export default class ConsulIntentionForm extends Component {
     let items = e.data
       .uniqBy('Name')
       .toArray()
-      .filter(item => !['connect-proxy', 'mesh-gateway', 'terminating-gateway'].includes(item.Kind))
+      .filter(
+        (item) => !['connect-proxy', 'mesh-gateway', 'terminating-gateway'].includes(item.Kind)
+      )
       .sort((a, b) => a.Name.localeCompare(b.Name));
     items = [{ Name: '*' }].concat(items);
     let source = items.findBy('Name', item.SourceName);

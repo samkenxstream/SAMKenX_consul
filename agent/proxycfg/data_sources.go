@@ -2,10 +2,10 @@ package proxycfg
 
 import (
 	"context"
+	"errors"
 
 	cachetype "github.com/hashicorp/consul/agent/cache-types"
 	"github.com/hashicorp/consul/agent/structs"
-	"github.com/hashicorp/consul/proto/pbpeering"
 )
 
 // UpdateEvent contains new data for a resource we are subscribed to (e.g. an
@@ -15,6 +15,28 @@ type UpdateEvent struct {
 	Result        interface{}
 	Err           error
 }
+
+// TerminalError wraps the given error to indicate that the data source is in
+// an irrecoverably broken state (e.g. because the given ACL token has been
+// deleted).
+//
+// Setting UpdateEvent.Err to a TerminalError causes all watches to be canceled
+// which, in turn, terminates the xDS streams.
+func TerminalError(err error) error {
+	return terminalError{err}
+}
+
+// IsTerminalError returns whether the given error indicates that the data
+// source is in an irrecoverably broken state so watches should be torn down
+// and retried at a higher level.
+func IsTerminalError(err error) bool {
+	return errors.As(err, &terminalError{})
+}
+
+type terminalError struct{ err error }
+
+func (e terminalError) Error() string { return e.err.Error() }
+func (e terminalError) Unwrap() error { return e.err }
 
 // DataSources contains the dependencies used to consume data used to configure
 // proxies.
@@ -47,6 +69,10 @@ type DataSources struct {
 	// notification channel.
 	GatewayServices GatewayServices
 
+	// ServiceGateways provides updates about a gateway's upstream services on a
+	// notification channel.
+	ServiceGateways ServiceGateways
+
 	// Health provides service health updates on a notification channel.
 	Health Health
 
@@ -61,13 +87,24 @@ type DataSources struct {
 	// notification channel.
 	IntentionUpstreams IntentionUpstreams
 
-	// InternalServiceDump provides updates about a (gateway) service on a
+	// IntentionUpstreamsDestination provides intention-inferred upstream updates on a
 	// notification channel.
+	IntentionUpstreamsDestination IntentionUpstreams
+
+	// InternalServiceDump provides updates about services of a given kind (e.g.
+	// mesh gateways) on a notification channel.
 	InternalServiceDump InternalServiceDump
 
 	// LeafCertificate provides updates about the service's leaf certificate on a
 	// notification channel.
 	LeafCertificate LeafCertificate
+
+	// PeeredUpstreams provides imported-service upstream updates on a
+	// notification channel.
+	PeeredUpstreams PeeredUpstreams
+
+	// PeeringList provides peering updates on a notification channel.
+	PeeringList PeeringList
 
 	// PreparedQuery provides updates about the results of a prepared query.
 	PreparedQuery PreparedQuery
@@ -111,7 +148,7 @@ type ConfigEntry interface {
 	Notify(ctx context.Context, req *structs.ConfigEntryQuery, correlationID string, ch chan<- UpdateEvent) error
 }
 
-// ConfigEntry is the interface used to consume updates about a list of config
+// ConfigEntryList is the interface used to consume updates about a list of config
 // entries.
 type ConfigEntryList interface {
 	Notify(ctx context.Context, req *structs.ConfigEntryQuery, correlationID string, ch chan<- UpdateEvent) error
@@ -135,6 +172,11 @@ type GatewayServices interface {
 	Notify(ctx context.Context, req *structs.ServiceSpecificRequest, correlationID string, ch chan<- UpdateEvent) error
 }
 
+// ServiceGateways is the interface used to consume updates about a service terminating gateways
+type ServiceGateways interface {
+	Notify(ctx context.Context, req *structs.ServiceSpecificRequest, correlationID string, ch chan<- UpdateEvent) error
+}
+
 // Health is the interface used to consume service health updates.
 type Health interface {
 	Notify(ctx context.Context, req *structs.ServiceSpecificRequest, correlationID string, ch chan<- UpdateEvent) error
@@ -149,7 +191,7 @@ type HTTPChecks interface {
 
 // Intentions is the interface used to consume intention updates.
 type Intentions interface {
-	Notify(ctx context.Context, req *structs.IntentionQueryRequest, correlationID string, ch chan<- UpdateEvent) error
+	Notify(ctx context.Context, req *structs.ServiceSpecificRequest, correlationID string, ch chan<- UpdateEvent) error
 }
 
 // IntentionUpstreams is the interface used to consume updates about upstreams
@@ -158,8 +200,8 @@ type IntentionUpstreams interface {
 	Notify(ctx context.Context, req *structs.ServiceSpecificRequest, correlationID string, ch chan<- UpdateEvent) error
 }
 
-// InternalServiceDump is the interface used to consume updates about a (gateway)
-// service via the internal ServiceDump RPC.
+// InternalServiceDump is the interface used to consume updates about services
+// of a given kind (e.g. mesh gateways).
 type InternalServiceDump interface {
 	Notify(ctx context.Context, req *structs.ServiceDumpRequest, correlationID string, ch chan<- UpdateEvent) error
 }
@@ -168,6 +210,17 @@ type InternalServiceDump interface {
 // leaf certificate.
 type LeafCertificate interface {
 	Notify(ctx context.Context, req *cachetype.ConnectCALeafRequest, correlationID string, ch chan<- UpdateEvent) error
+}
+
+// PeeredUpstreams is the interface used to consume updates about upstreams
+// for all peered targets in a given partition.
+type PeeredUpstreams interface {
+	Notify(ctx context.Context, req *structs.PartitionSpecificRequest, correlationID string, ch chan<- UpdateEvent) error
+}
+
+// PeeringList is the interface used to consume updates about peerings in the cluster or partition
+type PeeringList interface {
+	Notify(ctx context.Context, req *cachetype.PeeringListRequest, correlationID string, ch chan<- UpdateEvent) error
 }
 
 // PreparedQuery is the interface used to consume updates about the results of
@@ -191,13 +244,13 @@ type ServiceList interface {
 // TrustBundle is the interface used to consume updates about a single
 // peer's trust bundle.
 type TrustBundle interface {
-	Notify(ctx context.Context, req *pbpeering.TrustBundleReadRequest, correlationID string, ch chan<- UpdateEvent) error
+	Notify(ctx context.Context, req *cachetype.TrustBundleReadRequest, correlationID string, ch chan<- UpdateEvent) error
 }
 
 // TrustBundleList is the interface used to consume updates about trust bundles
 // for peered clusters that the given proxy is exported to.
 type TrustBundleList interface {
-	Notify(ctx context.Context, req *pbpeering.TrustBundleListByServiceRequest, correlationID string, ch chan<- UpdateEvent) error
+	Notify(ctx context.Context, req *cachetype.TrustBundleListRequest, correlationID string, ch chan<- UpdateEvent) error
 }
 
 // ExportedPeeredServices is the interface used to consume updates about the

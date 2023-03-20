@@ -3,7 +3,6 @@ package uiserver
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -43,6 +42,7 @@ func TestUIServerIndex(t *testing.T) {
 				"LocalDatacenter": "dc1",
 				"PrimaryDatacenter": "dc1",
 				"ContentPath": "/ui/",
+				"PeeringEnabled": true,
 				"UIConfig": {
 					"hcp_enabled": false,
 					"metrics_provider": "",
@@ -78,6 +78,7 @@ func TestUIServerIndex(t *testing.T) {
 				"LocalDatacenter": "dc1",
 				"PrimaryDatacenter": "dc1",
 				"ContentPath": "/ui/",
+				"PeeringEnabled": true,
 				"UIConfig": {
 					"hcp_enabled": false,
 					"metrics_provider": "foo",
@@ -101,6 +102,7 @@ func TestUIServerIndex(t *testing.T) {
 				"LocalDatacenter": "dc1",
 				"PrimaryDatacenter": "dc1",
 				"ContentPath": "/ui/",
+				"PeeringEnabled": true,
 				"UIConfig": {
 					"hcp_enabled": false,
 					"metrics_provider": "",
@@ -121,8 +123,32 @@ func TestUIServerIndex(t *testing.T) {
 				"LocalDatacenter": "dc1",
 				"PrimaryDatacenter": "dc1",
 				"ContentPath": "/ui/",
+				"PeeringEnabled": true,
 				"UIConfig": {
 					"hcp_enabled": true,
+					"metrics_provider": "",
+					"metrics_proxy_enabled": false,
+					"dashboard_url_templates": null
+				}
+			}`,
+		},
+		{
+			name: "peering disabled",
+			cfg: basicUIEnabledConfig(
+				withPeeringDisabled(),
+			),
+			path:         "/",
+			wantStatus:   http.StatusOK,
+			wantContains: []string{"<!-- CONSUL_VERSION:"},
+			wantUICfgJSON: `{
+				"ACLsEnabled": false,
+				"HCPEnabled": false,
+				"LocalDatacenter": "dc1",
+				"PrimaryDatacenter": "dc1",
+				"ContentPath": "/ui/",
+				"PeeringEnabled": false,
+				"UIConfig": {
+					"hcp_enabled": false,
 					"metrics_provider": "",
 					"metrics_proxy_enabled": false,
 					"dashboard_url_templates": null
@@ -152,6 +178,7 @@ func TestUIServerIndex(t *testing.T) {
 				"LocalDatacenter": "dc1",
 				"PrimaryDatacenter": "dc1",
 				"ContentPath": "/ui/",
+				"PeeringEnabled": true,
 				"UIConfig": {
 					"hcp_enabled": false,
 					"metrics_provider": "bar",
@@ -250,6 +277,7 @@ func basicUIEnabledConfig(opts ...cfgFunc) *config.RuntimeConfig {
 		},
 		Datacenter:        "dc1",
 		PrimaryDatacenter: "dc1",
+		PeeringEnabled:    true,
 	}
 	for _, f := range opts {
 		f(cfg)
@@ -286,6 +314,12 @@ func withMetricsProviderOptions(jsonStr string) cfgFunc {
 func withHCPEnabled() cfgFunc {
 	return func(cfg *config.RuntimeConfig) {
 		cfg.UIConfig.HCPEnabled = true
+	}
+}
+
+func withPeeringDisabled() cfgFunc {
+	return func(cfg *config.RuntimeConfig) {
+		cfg.PeeringEnabled = false
 	}
 }
 
@@ -345,7 +379,7 @@ func TestCustomDir(t *testing.T) {
 	defer os.RemoveAll(uiDir)
 
 	path := filepath.Join(uiDir, "test-file")
-	require.NoError(t, ioutil.WriteFile(path, []byte("test"), 0644))
+	require.NoError(t, os.WriteFile(path, []byte("test"), 0644))
 
 	cfg := basicUIEnabledConfig()
 	cfg.UIConfig.Dir = uiDir
@@ -392,7 +426,7 @@ func TestCompiledJS(t *testing.T) {
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			require.Equal(t, rec.Result().Header["Content-Type"][0], "application/javascript")
-			wantCompiled, err := ioutil.ReadFile("testdata/compiled-metrics-providers-golden.js")
+			wantCompiled, err := os.ReadFile("testdata/compiled-metrics-providers-golden.js")
 			require.NoError(t, err)
 			require.Equal(t, rec.Body.String(), string(wantCompiled))
 		})
@@ -422,6 +456,7 @@ func TestHandler_ServeHTTP_TransformIsEvaluatedOnEachRequest(t *testing.T) {
 		"LocalDatacenter": "dc1",
 		"PrimaryDatacenter": "dc1",
 		"ContentPath": "/ui/",
+		"PeeringEnabled": true,
 		"UIConfig": {
 			"hcp_enabled": false,
 			"metrics_provider": "",
@@ -447,6 +482,7 @@ func TestHandler_ServeHTTP_TransformIsEvaluatedOnEachRequest(t *testing.T) {
 			"LocalDatacenter": "dc1",
 			"PrimaryDatacenter": "dc1",
 			"ContentPath": "/ui/",
+			"PeeringEnabled": true,
 			"UIConfig": {
 				"hcp_enabled": false,
 				"metrics_provider": "",

@@ -1,0 +1,15 @@
+{
+  "Kind": "service-defaults",
+  "Name": "l1",
+  "Protocol": "http",
+  "EnvoyExtensions": [
+    {
+      "Name": "builtin/aws/lambda",
+      "Arguments": {
+        "Region": "${AWS_LAMBDA_REGION}",
+        "ARN": "${AWS_LAMBDA_ARN}",
+        "PayloadPassthrough": true
+      }
+    }
+  ]
+}

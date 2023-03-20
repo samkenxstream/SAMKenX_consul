@@ -22,11 +22,11 @@ import (
 	"github.com/hashicorp/consul/agent/cache"
 	"github.com/hashicorp/consul/agent/consul/state"
 	"github.com/hashicorp/consul/agent/consul/stream"
-	"github.com/hashicorp/consul/agent/grpc/private/services/subscribe"
+	"github.com/hashicorp/consul/agent/grpc-internal/services/subscribe"
 	"github.com/hashicorp/consul/agent/rpcclient/health"
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/agent/submatview"
-	"github.com/hashicorp/consul/proto/pbsubscribe"
+	"github.com/hashicorp/consul/proto/private/pbsubscribe"
 )
 
 func TestStore_IntegrationWithBackend(t *testing.T) {
@@ -44,7 +44,7 @@ func TestStore_IntegrationWithBackend(t *testing.T) {
 
 	sh := snapshotHandler{producers: producers}
 	pub := stream.NewEventPublisher(10 * time.Millisecond)
-	pub.RegisterHandler(pbsubscribe.Topic_ServiceHealth, sh.Snapshot)
+	pub.RegisterHandler(pbsubscribe.Topic_ServiceHealth, sh.Snapshot, false)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -295,6 +295,7 @@ type consumer struct {
 }
 
 func newConsumer(t *testing.T, addr net.Addr, store *submatview.Store, srv string) *consumer {
+	//nolint:staticcheck
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
 	require.NoError(t, err)
 

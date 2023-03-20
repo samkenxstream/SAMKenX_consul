@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 export default {
   id: 'data-loader',
   initial: 'load',
@@ -17,15 +22,9 @@ export default {
         target: 'loading',
       },
     ],
-    INVALIDATE: [
-      {
-        target: 'invalidating',
-      },
-    ],
   },
   states: {
     load: {},
-    invalidating: {},
     loading: {
       on: {
         SUCCESS: {

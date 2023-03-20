@@ -1,3 +1,8 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-License-Identifier: MPL-2.0
+}}
+
 <Route
   @name={{routeName}}
 as |route|>
@@ -46,12 +51,13 @@ as |sort filters items proxyMeta|}}
     {{/if}}
     {{#if proxyMeta.ServiceName}}
       <DataSource
-        @src={{uri '/${partition}/${nspace}/${dc}/service-instances/for-service/${name}'
+      @src={{uri '/${partition}/${nspace}/${dc}/service-instances/for-service/${name}/${peer}'
           (hash
             partition=route.params.partition
             nspace=route.params.nspace
             dc=route.params.dc
             name=proxyMeta.ServiceName
+            peer=route.params.peer
           )
         }}
         @onchange={{action (mut proxies) value="data"}}

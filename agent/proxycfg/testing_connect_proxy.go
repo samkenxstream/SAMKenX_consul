@@ -1,6 +1,7 @@
 package proxycfg
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/mitchellh/go-testing-interface"
@@ -9,6 +10,7 @@ import (
 	"github.com/hashicorp/consul/agent/connect"
 	"github.com/hashicorp/consul/agent/consul/discoverychain"
 	"github.com/hashicorp/consul/agent/structs"
+	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/types"
 )
 
@@ -42,11 +44,7 @@ func TestConfigSnapshot(t testing.T, nsFn func(ns *structs.NodeService), extraUp
 		},
 		{
 			CorrelationID: intentionsWatchID,
-			Result: &structs.IndexedIntentionMatches{
-				Matches: []structs.Intentions{
-					nil, // no intentions defined
-				},
-			},
+			Result:        structs.Intentions{}, // no intentions defined
 		},
 		{
 			CorrelationID: svcChecksWatchIDPrefix + webSN,
@@ -121,11 +119,7 @@ func TestConfigSnapshotDiscoveryChain(
 		},
 		{
 			CorrelationID: intentionsWatchID,
-			Result: &structs.IndexedIntentionMatches{
-				Matches: []structs.Intentions{
-					nil, // no intentions defined
-				},
-			},
+			Result:        structs.Intentions{}, // no intentions defined
 		},
 		{
 			CorrelationID: meshConfigEntryID,
@@ -183,11 +177,7 @@ func TestConfigSnapshotExposeConfig(t testing.T, nsFn func(ns *structs.NodeServi
 		},
 		{
 			CorrelationID: intentionsWatchID,
-			Result: &structs.IndexedIntentionMatches{
-				Matches: []structs.Intentions{
-					nil, // no intentions defined
-				},
-			},
+			Result:        structs.Intentions{}, // no intentions defined
 		},
 		{
 			CorrelationID: svcChecksWatchIDPrefix + webSN,
@@ -292,15 +282,59 @@ func TestConfigSnapshotGRPCExposeHTTP1(t testing.T) *ConfigSnapshot {
 		},
 		{
 			CorrelationID: intentionsWatchID,
-			Result: &structs.IndexedIntentionMatches{
-				Matches: []structs.Intentions{
-					nil, // no intentions defined
-				},
-			},
+			Result:        structs.Intentions{}, // no intentions defined
 		},
 		{
 			CorrelationID: svcChecksWatchIDPrefix + structs.ServiceIDString("grpc", nil),
 			Result:        []structs.CheckType{},
+		},
+	})
+}
+
+// TestConfigSnapshotDiscoveryChain returns a fully populated snapshot using a discovery chain
+func TestConfigSnapshotHCPMetrics(t testing.T) *ConfigSnapshot {
+	// DiscoveryChain without an UpstreamConfig should yield a
+	// filter chain when in transparent proxy mode
+	var (
+		collector      = structs.NewServiceName(api.HCPMetricsCollectorName, nil)
+		collectorUID   = NewUpstreamIDFromServiceName(collector)
+		collectorChain = discoverychain.TestCompileConfigEntries(t, api.HCPMetricsCollectorName, "default", "default", "dc1", connect.TestClusterID+".consul", nil)
+	)
+
+	return TestConfigSnapshot(t, func(ns *structs.NodeService) {
+		ns.Proxy.Config = map[string]interface{}{
+			"envoy_hcp_metrics_bind_socket_dir": "/tmp/consul/hcp-metrics",
+		}
+	}, []UpdateEvent{
+		{
+			CorrelationID: meshConfigEntryID,
+			Result: &structs.ConfigEntryResponse{
+				Entry: nil,
+			},
+		},
+		{
+			CorrelationID: "discovery-chain:" + collectorUID.String(),
+			Result: &structs.DiscoveryChainResponse{
+				Chain: collectorChain,
+			},
+		},
+		{
+			CorrelationID: fmt.Sprintf("upstream-target:%s.default.default.dc1:", api.HCPMetricsCollectorName) + collectorUID.String(),
+			Result: &structs.IndexedCheckServiceNodes{
+				Nodes: []structs.CheckServiceNode{
+					{
+						Node: &structs.Node{
+							Address:    "8.8.8.8",
+							Datacenter: "dc1",
+						},
+						Service: &structs.NodeService{
+							Service: api.HCPMetricsCollectorName,
+							Address: "9.9.9.9",
+							Port:    9090,
+						},
+					},
+				},
+			},
 		},
 	})
 }

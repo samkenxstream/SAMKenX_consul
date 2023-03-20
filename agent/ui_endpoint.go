@@ -37,6 +37,8 @@ type ServiceSummary struct {
 	transparentProxySet bool
 	ConnectNative       bool
 
+	PeerName string `json:",omitempty"`
+
 	acl.EnterpriseMeta
 }
 
@@ -96,7 +98,7 @@ func (s *HTTPHandlers) UINodes(resp http.ResponseWriter, req *http.Request) (int
 	var out structs.IndexedNodeDump
 	defer setMeta(resp, &out.QueryMeta)
 RPC:
-	if err := s.agent.RPC("Internal.NodeDump", &args, &out); err != nil {
+	if err := s.agent.RPC(req.Context(), "Internal.NodeDump", &args, &out); err != nil {
 		// Retry the request allowing stale data if no leader
 		if strings.Contains(err.Error(), structs.ErrNoLeader.Error()) && !args.AllowStale {
 			args.AllowStale = true
@@ -117,7 +119,18 @@ RPC:
 	if out.Dump == nil {
 		out.Dump = make(structs.NodeDump, 0)
 	}
-	return out.Dump, nil
+
+	// Use empty list instead of nil
+	for _, info := range out.ImportedDump {
+		if info.Services == nil {
+			info.Services = make([]*structs.NodeService, 0)
+		}
+		if info.Checks == nil {
+			info.Checks = make([]*structs.HealthCheck, 0)
+		}
+	}
+
+	return append(out.Dump, out.ImportedDump...), nil
 }
 
 // UINodeInfo is used to get info on a single node in a given datacenter. We return a
@@ -139,11 +152,15 @@ func (s *HTTPHandlers) UINodeInfo(resp http.ResponseWriter, req *http.Request) (
 		return nil, HTTPError{StatusCode: http.StatusBadRequest, Reason: "Missing node name"}
 	}
 
+	if peer := req.URL.Query().Get("peer"); peer != "" {
+		args.PeerName = peer
+	}
+
 	// Make the RPC request
 	var out structs.IndexedNodeDump
 	defer setMeta(resp, &out.QueryMeta)
 RPC:
-	if err := s.agent.RPC("Internal.NodeInfo", &args, &out); err != nil {
+	if err := s.agent.RPC(req.Context(), "Internal.NodeInfo", &args, &out); err != nil {
 		// Retry the request allowing stale data if no leader
 		if strings.Contains(err.Error(), structs.ErrNoLeader.Error()) && !args.AllowStale {
 			args.AllowStale = true
@@ -179,7 +196,7 @@ func (s *HTTPHandlers) UICatalogOverview(resp http.ResponseWriter, req *http.Req
 
 	// Make the RPC request
 	var out structs.CatalogSummary
-	if err := s.agent.RPC("Internal.CatalogOverview", &args, &out); err != nil {
+	if err := s.agent.RPC(req.Context(), "Internal.CatalogOverview", &args, &out); err != nil {
 		return nil, err
 	}
 
@@ -194,7 +211,9 @@ func (s *HTTPHandlers) UIServices(resp http.ResponseWriter, req *http.Request) (
 	if done := s.parse(resp, req, &args.Datacenter, &args.QueryOptions); done {
 		return nil, nil
 	}
-
+	if peer := req.URL.Query().Get("peer"); peer != "" {
+		args.PeerName = peer
+	}
 	if err := s.parseEntMeta(req, &args.EnterpriseMeta); err != nil {
 		return nil, err
 	}
@@ -205,7 +224,7 @@ func (s *HTTPHandlers) UIServices(resp http.ResponseWriter, req *http.Request) (
 	var out structs.IndexedNodesWithGateways
 	defer setMeta(resp, &out.QueryMeta)
 RPC:
-	if err := s.agent.RPC("Internal.ServiceDump", &args, &out); err != nil {
+	if err := s.agent.RPC(req.Context(), "Internal.ServiceDump", &args, &out); err != nil {
 		// Retry the request allowing stale data if no leader
 		if strings.Contains(err.Error(), structs.ErrNoLeader.Error()) && !args.AllowStale {
 			args.AllowStale = true
@@ -216,15 +235,17 @@ RPC:
 
 	// Store the names of the gateways associated with each service
 	var (
-		serviceGateways   = make(map[structs.ServiceName][]structs.ServiceName)
-		numLinkedServices = make(map[structs.ServiceName]int)
+		serviceGateways   = make(map[structs.PeeredServiceName][]structs.PeeredServiceName)
+		numLinkedServices = make(map[structs.PeeredServiceName]int)
 	)
 	for _, gs := range out.Gateways {
-		serviceGateways[gs.Service] = append(serviceGateways[gs.Service], gs.Gateway)
-		numLinkedServices[gs.Gateway] += 1
+		psn := structs.PeeredServiceName{Peer: structs.DefaultPeerKeyword, ServiceName: gs.Service}
+		gpsn := structs.PeeredServiceName{Peer: structs.DefaultPeerKeyword, ServiceName: gs.Gateway}
+		serviceGateways[psn] = append(serviceGateways[psn], gpsn)
+		numLinkedServices[gpsn] += 1
 	}
 
-	summaries, hasProxy := summarizeServices(out.Nodes.ToServiceDump(), nil, "")
+	summaries, hasProxy := summarizeServices(append(out.Nodes, out.ImportedNodes...).ToServiceDump(), nil, "")
 	sorted := prepSummaryOutput(summaries, false)
 
 	// Ensure at least a zero length slice
@@ -233,17 +254,18 @@ RPC:
 		sum := ServiceListingSummary{ServiceSummary: *svc}
 
 		sn := structs.NewServiceName(svc.Name, &svc.EnterpriseMeta)
-		if hasProxy[sn] {
+		psn := structs.PeeredServiceName{Peer: svc.PeerName, ServiceName: sn}
+		if hasProxy[psn] {
 			sum.ConnectedWithProxy = true
 		}
 
 		// Verify that at least one of the gateways linked by config entry has an instance registered in the catalog
-		for _, gw := range serviceGateways[sn] {
+		for _, gw := range serviceGateways[psn] {
 			if s := summaries[gw]; s != nil && sum.InstanceCount > 0 {
 				sum.ConnectedWithGateway = true
 			}
 		}
-		sum.GatewayConfig.AssociatedServiceCount = numLinkedServices[sn]
+		sum.GatewayConfig.AssociatedServiceCount = numLinkedServices[psn]
 
 		result = append(result, &sum)
 	}
@@ -271,7 +293,7 @@ func (s *HTTPHandlers) UIGatewayServicesNodes(resp http.ResponseWriter, req *htt
 	var out structs.IndexedServiceDump
 	defer setMeta(resp, &out.QueryMeta)
 RPC:
-	if err := s.agent.RPC("Internal.GatewayServiceDump", &args, &out); err != nil {
+	if err := s.agent.RPC(req.Context(), "Internal.GatewayServiceDump", &args, &out); err != nil {
 		// Retry the request allowing stale data if no leader
 		if strings.Contains(err.Error(), structs.ErrNoLeader.Error()) && !args.AllowStale {
 			args.AllowStale = true
@@ -324,7 +346,7 @@ func (s *HTTPHandlers) UIServiceTopology(resp http.ResponseWriter, req *http.Req
 	var out structs.IndexedServiceTopology
 	defer setMeta(resp, &out.QueryMeta)
 RPC:
-	if err := s.agent.RPC("Internal.ServiceTopology", &args, &out); err != nil {
+	if err := s.agent.RPC(req.Context(), "Internal.ServiceTopology", &args, &out); err != nil {
 		// Retry the request allowing stale data if no leader
 		if strings.Contains(err.Error(), structs.ErrNoLeader.Error()) && !args.AllowStale {
 			args.AllowStale = true
@@ -389,31 +411,43 @@ RPC:
 	return topo, nil
 }
 
-func summarizeServices(dump structs.ServiceDump, cfg *config.RuntimeConfig, dc string) (map[structs.ServiceName]*ServiceSummary, map[structs.ServiceName]bool) {
+func summarizeServices(dump structs.ServiceDump, cfg *config.RuntimeConfig, dc string) (map[structs.PeeredServiceName]*ServiceSummary, map[structs.PeeredServiceName]bool) {
 	var (
-		summary  = make(map[structs.ServiceName]*ServiceSummary)
-		hasProxy = make(map[structs.ServiceName]bool)
+		summary  = make(map[structs.PeeredServiceName]*ServiceSummary)
+		hasProxy = make(map[structs.PeeredServiceName]bool)
 	)
 
-	getService := func(service structs.ServiceName) *ServiceSummary {
-		serv, ok := summary[service]
+	getService := func(psn structs.PeeredServiceName) *ServiceSummary {
+		serv, ok := summary[psn]
 		if !ok {
 			serv = &ServiceSummary{
-				Name:           service.Name,
-				EnterpriseMeta: service.EnterpriseMeta,
+				Name:           psn.ServiceName.Name,
+				EnterpriseMeta: psn.ServiceName.EnterpriseMeta,
 				// the other code will increment this unconditionally so we
 				// shouldn't initialize it to 1
 				InstanceCount: 0,
+				PeerName:      psn.Peer,
 			}
-			summary[service] = serv
+			summary[psn] = serv
 		}
 		return serv
 	}
 
 	for _, csn := range dump {
+		var peerName string
+		// all entities will have the same peer name so it is safe to use the node's peer name
+		if csn.Node == nil {
+			// this can happen for gateway dumps that call this summarize func
+			peerName = structs.DefaultPeerKeyword
+		} else {
+			peerName = csn.Node.PeerName
+		}
+
 		if cfg != nil && csn.GatewayService != nil {
 			gwsvc := csn.GatewayService
-			sum := getService(gwsvc.Service)
+
+			psn := structs.PeeredServiceName{Peer: peerName, ServiceName: gwsvc.Service}
+			sum := getService(psn)
 			modifySummaryForGatewayService(cfg, dc, sum, gwsvc)
 		}
 
@@ -421,8 +455,10 @@ func summarizeServices(dump structs.ServiceDump, cfg *config.RuntimeConfig, dc s
 		if csn.Service == nil {
 			continue
 		}
+
 		sn := structs.NewServiceName(csn.Service.Service, &csn.Service.EnterpriseMeta)
-		sum := getService(sn)
+		psn := structs.PeeredServiceName{Peer: peerName, ServiceName: sn}
+		sum := getService(psn)
 
 		svc := csn.Service
 		sum.Nodes = append(sum.Nodes, csn.Node.Node)
@@ -432,9 +468,10 @@ func summarizeServices(dump structs.ServiceDump, cfg *config.RuntimeConfig, dc s
 		sum.ConnectNative = svc.Connect.Native
 		if svc.Kind == structs.ServiceKindConnectProxy {
 			sn := structs.NewServiceName(svc.Proxy.DestinationServiceName, &svc.EnterpriseMeta)
-			hasProxy[sn] = true
+			psn := structs.PeeredServiceName{Peer: peerName, ServiceName: sn}
+			hasProxy[psn] = true
 
-			destination := getService(sn)
+			destination := getService(psn)
 			for _, check := range csn.Checks {
 				cid := structs.NewCheckID(check.CheckID, &check.EnterpriseMeta)
 				uid := structs.UniqueID(csn.Node.Node, cid.String())
@@ -496,7 +533,7 @@ func summarizeServices(dump structs.ServiceDump, cfg *config.RuntimeConfig, dc s
 	return summary, hasProxy
 }
 
-func prepSummaryOutput(summaries map[structs.ServiceName]*ServiceSummary, excludeSidecars bool) []*ServiceSummary {
+func prepSummaryOutput(summaries map[structs.PeeredServiceName]*ServiceSummary, excludeSidecars bool) []*ServiceSummary {
 	var resp []*ServiceSummary
 	// Ensure at least a zero length slice
 	resp = make([]*ServiceSummary, 0)
@@ -594,7 +631,7 @@ func (s *HTTPHandlers) UIGatewayIntentions(resp http.ResponseWriter, req *http.R
 	var reply structs.IndexedIntentions
 
 	defer setMeta(resp, &reply.QueryMeta)
-	if err := s.agent.RPC("Internal.GatewayIntentions", args, &reply); err != nil {
+	if err := s.agent.RPC(req.Context(), "Internal.GatewayIntentions", args, &reply); err != nil {
 		return nil, err
 	}
 
@@ -734,6 +771,7 @@ func (s *HTTPHandlers) UIMetricsProxy(resp http.ResponseWriter, req *http.Reques
 		Director: func(r *http.Request) {
 			r.URL = u
 		},
+		Transport: s.proxyTransport,
 		ErrorLog: log.StandardLogger(&hclog.StandardLoggerOptions{
 			InferLevels: true,
 		}),
@@ -741,4 +779,50 @@ func (s *HTTPHandlers) UIMetricsProxy(resp http.ResponseWriter, req *http.Reques
 
 	proxy.ServeHTTP(resp, req)
 	return nil, nil
+}
+
+// UIExportedServices is used to list the exported services to a given peer. We return a
+// barebones ServiceListingSummary which only contains the name and enterprise meta of a service.
+// Currently, the request and response mirror UIServices but the API may change in the future.
+func (s *HTTPHandlers) UIExportedServices(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
+	// Parse arguments
+	args := structs.ServiceDumpRequest{}
+	if done := s.parse(resp, req, &args.Datacenter, &args.QueryOptions); done {
+		return nil, nil
+	}
+	if peer := req.URL.Query().Get("peer"); peer != "" {
+		args.PeerName = peer
+	}
+	if err := s.parseEntMeta(req, &args.EnterpriseMeta); err != nil {
+		return nil, err
+	}
+
+	// Make the RPC request
+	var out structs.IndexedServiceList
+	defer setMeta(resp, &out.QueryMeta)
+RPC:
+	if err := s.agent.RPC(req.Context(), "Internal.ExportedServicesForPeer", &args, &out); err != nil {
+		// Retry the request allowing stale data if no leader
+		if strings.Contains(err.Error(), structs.ErrNoLeader.Error()) && !args.AllowStale {
+			args.AllowStale = true
+			goto RPC
+		}
+		return nil, err
+	}
+	// Ensure at least a zero length slice
+	result := make([]*ServiceListingSummary, 0)
+	for _, svc := range out.Services {
+		// We synthesize a minimal summary for the frontend.
+		// The shape of the data may change in the future but
+		// currently only the service name is required.
+		sum := ServiceListingSummary{
+			ServiceSummary: ServiceSummary{
+				Name:           svc.Name,
+				EnterpriseMeta: svc.EnterpriseMeta,
+				Datacenter:     args.Datacenter,
+			},
+		}
+		result = append(result, &sum)
+	}
+	return result, nil
 }

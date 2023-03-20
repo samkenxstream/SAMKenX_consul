@@ -1,7 +1,12 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import { env } from 'consul-ui/env';
 
 const SECONDARY_BUTTON = 2;
-const isSelecting = function(win = window) {
+const isSelecting = function (win = window) {
   const selection = win.getSelection();
   let selecting = false;
   try {
@@ -21,10 +26,10 @@ export default {
     const dom = container.lookup('service:dom');
     const doc = dom.document();
     const $html = doc.getElementsByTagName('html')[0];
-    const findAnchor = function(el) {
+    const findAnchor = function (el) {
       return el.tagName === 'A' ? el : dom.closest('a', el);
     };
-    const mousedown = function(e) {
+    const mousedown = function (e) {
       if ($html.classList.contains('is-debug')) {
         return;
       }
@@ -44,7 +49,7 @@ export default {
         }
       }
     };
-    const mouseup = function(e) {
+    const mouseup = function (e) {
       if ($html.classList.contains('is-debug')) {
         return;
       }
@@ -61,7 +66,7 @@ export default {
     doc.body.addEventListener('mouseup', mouseup);
 
     container.reopen({
-      willDestroy: function() {
+      willDestroy: function () {
         doc.body.removeEventListener('mousedown', mousedown);
         doc.body.removeEventListener('mouseup', mouseup);
         return this._super(...arguments);

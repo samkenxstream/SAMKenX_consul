@@ -1,3 +1,8 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-License-Identifier: MPL-2.0
+}}
+
 {{#if (not this.disabled)}}
   {{#if (eq this.loading "lazy")}}
     {{! in order to use intersection observer we need a DOM element on the page}}
@@ -17,6 +22,7 @@
 {{yield (hash
   data=this.data
   error=this.error
+  invalidate=this.invalidate
   Source=(if this.data
     (component 'data-source' disabled=(not (eq this.error undefined)))
     ''

@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Serializer from './application';
 import { PRIMARY_KEY, SLUG_KEY } from 'consul-ui/models/session';
 
@@ -7,7 +12,7 @@ export default class SessionSerializer extends Serializer {
 
   respondForQueryRecord(respond, query) {
     return super.respondForQueryRecord(
-      cb =>
+      (cb) =>
         respond((headers, body) => {
           if (body.length === 0) {
             const e = new Error();

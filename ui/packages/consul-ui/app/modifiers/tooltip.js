@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import { modifier } from 'ember-modifier';
 import tippy, { followCursor } from 'tippy.js';
 
@@ -8,6 +13,9 @@ import tippy, { followCursor } from 'tippy.js';
  * {{tooltip 'Text' options=(hash )}}
  */
 export default modifier(($element, [content], hash = {}) => {
+  if (typeof content === 'string' && content.trim() === '') {
+    return;
+  }
   const options = hash.options || {};
 
   let $anchor = $element;
@@ -37,7 +45,7 @@ export default modifier(($element, [content], hash = {}) => {
     // amount of time specified by the delay
     const delay = options.delay || [];
     if (typeof delay[1] !== 'undefined') {
-      hash.options.onShown = tooltip => {
+      hash.options.onShown = (tooltip) => {
         clearInterval(interval);
         interval = setTimeout(() => {
           tooltip.hide();
@@ -54,11 +62,11 @@ export default modifier(($element, [content], hash = {}) => {
   const tooltip = tippy($anchor, {
     theme: 'tooltip',
     triggerTarget: $trigger,
-    content: $anchor => content,
+    content: ($anchor) => content,
     // showOnCreate: true,
     // hideOnClick: false,
-    plugins: [typeof options.followCursor !== 'undefined' ? followCursor : undefined].filter(item =>
-      Boolean(item)
+    plugins: [typeof options.followCursor !== 'undefined' ? followCursor : undefined].filter(
+      (item) => Boolean(item)
     ),
     ...hash.options,
   });

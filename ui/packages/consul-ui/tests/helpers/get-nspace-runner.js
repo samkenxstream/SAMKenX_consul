@@ -1,8 +1,13 @@
-export default function(type) {
-  return function(cb, withNspaces, withoutNspaces, container, assert) {
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+export default function (type) {
+  return function (cb, withNspaces, withoutNspaces, container, assert) {
     let CONSUL_NSPACES_ENABLED = true;
     const env = container.owner.lookup('service:env');
-    env.var = function() {
+    env.var = function () {
       return CONSUL_NSPACES_ENABLED;
     };
     const adapter = container.owner.lookup(`adapter:${type}`);

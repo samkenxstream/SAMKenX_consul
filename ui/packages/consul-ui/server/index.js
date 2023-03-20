@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 /*eslint node/no-extraneous-require: "off"*/
 'use strict';
 const fs = require('fs');
@@ -5,7 +10,7 @@ const promisify = require('util').promisify;
 const read = promisify(fs.readFile);
 const express = require('express');
 
-module.exports = function(app, options) {
+module.exports = function (app, options) {
   // During development the proxy server has no way of
   // knowing the content/mime type of our `oidc/callback` file
   // as it has no extension.
@@ -15,9 +20,9 @@ module.exports = function(app, options) {
   const file = `/oidc/callback`;
   const rootURL = options.rootURL;
   const url = `${rootURL.substr(0, rootURL.length - 1)}${file}`;
-  app.use(function(req, resp, next) {
+  app.use(function (req, resp, next) {
     if (req.url.split('?')[0] === url) {
-      return read(`${process.cwd()}/public${file}`).then(function(buffer) {
+      return read(`${process.cwd()}/public${file}`).then(function (buffer) {
         resp.header('Content-Type', 'text/html');
         resp.write(buffer.toString());
         resp.end();
@@ -27,7 +32,7 @@ module.exports = function(app, options) {
   });
 
   // sets the base CSP policy for the UI
-  app.use(function(request, response, next) {
+  app.use(function (request, response, next) {
     response.set({
       'Content-Security-Policy': `default-src 'self' 'unsafe-inline' ws: localhost:${options.liveReloadPort} http: localhost:${options.liveReloadPort}; img-src 'self' data: ; style-src 'self' 'unsafe-inline'`,
     });

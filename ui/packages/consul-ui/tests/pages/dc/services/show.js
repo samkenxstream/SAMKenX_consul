@@ -1,4 +1,9 @@
-export default function(
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+export default function (
   visitable,
   clickable,
   attribute,
@@ -19,6 +24,7 @@ export default function(
     metricsAnchor: {
       href: attribute('href', '[data-test-metrics-anchor]'),
     },
+    peer: text('[data-test-peer-info] [data-test-peer-name]'),
     tabs: tabs('tab', [
       'topology',
       'instances',
@@ -31,7 +37,10 @@ export default function(
     // TODO: These need to somehow move to subpages
     instances: collection('.consul-service-instance-list > ul > li:not(:first-child)', {
       address: text('[data-test-address]'),
+      externalSource: attribute('data-test-external-source', '[data-test-external-source]'),
       instance: clickable('a'),
+      nodeChecks: text('[data-test-node-health-checks]'),
+      nodeName: text('[data-test-node-name]'),
     }),
     intentionList: intentions(),
   };

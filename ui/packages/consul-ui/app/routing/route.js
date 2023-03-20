@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Route from '@ember/routing/route';
 import { get, setProperties, action } from '@ember/object';
 import { inject as service } from '@ember/service';
@@ -34,9 +39,7 @@ export default class BaseRoute extends Route {
       // which is why I didn't do it originally so be sure to look properly if
       // you feel like adding a return
       this.replaceWith(
-        resolve(this.routeName.split('.').join('/'), to)
-          .split('/')
-          .join('.'),
+        resolve(this.routeName.split('.').join('/'), to).split('/').join('.'),
         model
       );
     }
@@ -65,7 +68,7 @@ export default class BaseRoute extends Route {
         if (Array.isArray(actual)) {
           actual = actual.split(',');
         }
-        const diff = possible.filter(item => !actual.includes(item));
+        const diff = possible.filter((item) => !actual.includes(item));
         if (diff.length === 0) {
           value = undefined;
         }

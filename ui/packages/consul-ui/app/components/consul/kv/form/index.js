@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Component from '@ember/component';
 import { get, set } from '@ember/object';
 import { inject as service } from '@ember/service';
@@ -6,15 +11,15 @@ export default Component.extend({
   tagName: '',
   encoder: service('btoa'),
   json: true,
-  ondelete: function() {
+  ondelete: function () {
     this.onsubmit(...arguments);
   },
-  oncancel: function() {
+  oncancel: function () {
     this.onsubmit(...arguments);
   },
-  onsubmit: function() {},
+  onsubmit: function () {},
   actions: {
-    change: function(e, form) {
+    change: function (e, form) {
       const item = form.getData();
       try {
         form.handleEvent(e);

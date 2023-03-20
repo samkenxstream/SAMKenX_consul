@@ -1,6 +1,7 @@
 package cachetype
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hashicorp/consul/agent/cache"
@@ -10,7 +11,7 @@ import (
 // Recommended name for registration.
 const IntentionUpstreamsName = "intention-upstreams"
 
-// GatewayUpstreams supports fetching upstreams for a given gateway name.
+// IntentionUpstreams supports fetching upstreams for a given service name.
 type IntentionUpstreams struct {
 	RegisterOptionsBlockingRefresh
 	RPC RPC
@@ -42,7 +43,7 @@ func (i *IntentionUpstreams) Fetch(opts cache.FetchOptions, req cache.Request) (
 
 	// Fetch
 	var reply structs.IndexedServiceList
-	if err := i.RPC.RPC("Internal.IntentionUpstreams", reqReal, &reply); err != nil {
+	if err := i.RPC.RPC(context.Background(), "Internal.IntentionUpstreams", reqReal, &reply); err != nil {
 		return result, err
 	}
 

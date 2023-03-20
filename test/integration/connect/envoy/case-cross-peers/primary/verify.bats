@@ -23,15 +23,15 @@ load helpers
 }
 
 @test "gateway-primary should be up and listening" {
-  retry_long nc -z consul-primary:4431
+  retry_long nc -z consul-primary-client:4431
 }
 
 @test "gateway-alpha should be up and listening" {
-  retry_long nc -z consul-alpha:4432
+  retry_long nc -z consul-alpha-client:4432
 }
 
 @test "peer the two clusters together" {
-  create_peering primary alpha
+  retry_default create_peering primary alpha
 }
 
 @test "s2 alpha proxies should be healthy in primary" {
@@ -39,19 +39,23 @@ load helpers
 }
 
 @test "gateway-alpha should have healthy endpoints for s2" {
-  assert_upstream_has_endpoints_in_status consul-alpha:19003 s2.default.alpha HEALTHY 1
+  assert_upstream_has_endpoints_in_status consul-alpha-client:19003 exported~s2.default.alpha HEALTHY 1
 }
 
 @test "s1 upstream should have healthy endpoints for s2" {
-  assert_upstream_has_endpoints_in_status 127.0.0.1:19000 s2.default.default.alpha-to-primary.external HEALTHY 1
+  assert_upstream_has_endpoints_in_status 127.0.0.1:19000 s2.default.primary-to-alpha.external HEALTHY 1
 }
 
 @test "s1 upstream should be able to connect to s2" {
   run retry_default curl -s -f -d hello localhost:5000
   [ "$status" -eq 0 ]
-  [ "$output" = "hello" ]
+  [[ "$output" == *"hello"* ]]
 }
 
 @test "s1 upstream made 1 connection to s2" {
-  assert_envoy_metric_at_least 127.0.0.1:19000 "cluster.s2.default.default.alpha-to-primary.external.*cx_total" 1
+  assert_envoy_metric_at_least 127.0.0.1:19000 "cluster.s2.default.primary-to-alpha.external.*cx_total" 1
+}
+
+@test "s1 upstream made 1 connection to s2 through the primary mesh gateway" {
+  assert_envoy_metric_at_least 127.0.0.1:19001 "cluster.s2.default.default.alpha-to-primary.external.*cx_total" 1
 }

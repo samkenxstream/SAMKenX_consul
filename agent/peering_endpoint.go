@@ -6,9 +6,11 @@ import (
 	"strings"
 
 	"github.com/hashicorp/consul/acl"
+	external "github.com/hashicorp/consul/agent/grpc-external"
+	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/lib"
-	"github.com/hashicorp/consul/proto/pbpeering"
+	"github.com/hashicorp/consul/proto/private/pbpeering"
 )
 
 // PeeringEndpoint handles GET, DELETE on v1/peering/name
@@ -32,17 +34,24 @@ func (s *HTTPHandlers) PeeringEndpoint(resp http.ResponseWriter, req *http.Reque
 // peeringRead fetches a peering that matches the name and partition.
 // This assumes that the name and partition parameters are valid
 func (s *HTTPHandlers) peeringRead(resp http.ResponseWriter, req *http.Request, name string) (interface{}, error) {
-	args := pbpeering.PeeringReadRequest{
-		Name:       name,
-		Datacenter: s.agent.config.Datacenter,
-	}
 	var entMeta acl.EnterpriseMeta
 	if err := s.parseEntMetaPartition(req, &entMeta); err != nil {
 		return nil, err
 	}
-	args.Partition = entMeta.PartitionOrEmpty()
+	args := pbpeering.PeeringReadRequest{
+		Name:      name,
+		Partition: entMeta.PartitionOrEmpty(),
+	}
 
-	result, err := s.agent.rpcClientPeering.PeeringRead(req.Context(), &args)
+	var dc string
+	options := structs.QueryOptions{}
+	s.parse(resp, req, &dc, &options)
+	ctx, err := external.ContextWithQueryOptions(req.Context(), options)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := s.agent.rpcClientPeering.PeeringRead(ctx, &args)
 	if err != nil {
 		return nil, err
 	}
@@ -55,16 +64,23 @@ func (s *HTTPHandlers) peeringRead(resp http.ResponseWriter, req *http.Request, 
 
 // PeeringList fetches all peerings in the datacenter in OSS or in a given partition in Consul Enterprise.
 func (s *HTTPHandlers) PeeringList(resp http.ResponseWriter, req *http.Request) (interface{}, error) {
-	args := pbpeering.PeeringListRequest{
-		Datacenter: s.agent.config.Datacenter,
-	}
 	var entMeta acl.EnterpriseMeta
 	if err := s.parseEntMetaPartition(req, &entMeta); err != nil {
 		return nil, err
 	}
-	args.Partition = entMeta.PartitionOrEmpty()
+	args := pbpeering.PeeringListRequest{
+		Partition: entMeta.PartitionOrEmpty(),
+	}
 
-	pbresp, err := s.agent.rpcClientPeering.PeeringList(req.Context(), &args)
+	var dc string
+	options := structs.QueryOptions{}
+	s.parse(resp, req, &dc, &options)
+	ctx, err := external.ContextWithQueryOptions(req.Context(), options)
+	if err != nil {
+		return nil, err
+	}
+
+	pbresp, err := s.agent.rpcClientPeering.PeeringList(ctx, &args)
 	if err != nil {
 		return nil, err
 	}
@@ -79,14 +95,12 @@ func (s *HTTPHandlers) PeeringGenerateToken(resp http.ResponseWriter, req *http.
 		return nil, HTTPError{StatusCode: http.StatusBadRequest, Reason: "The peering arguments must be provided in the body"}
 	}
 
-	apiRequest := &api.PeeringGenerateTokenRequest{
-		Datacenter: s.agent.config.Datacenter,
-	}
-	if err := lib.DecodeJSON(req.Body, apiRequest); err != nil {
+	var apiRequest api.PeeringGenerateTokenRequest
+	if err := lib.DecodeJSON(req.Body, &apiRequest); err != nil {
 		return nil, HTTPError{StatusCode: http.StatusBadRequest, Reason: fmt.Sprintf("Body decoding failed: %v", err)}
 	}
-	args := pbpeering.NewGenerateTokenRequestFromAPI(apiRequest)
 
+	args := pbpeering.NewGenerateTokenRequestFromAPI(&apiRequest)
 	if args.PeerName == "" {
 		return nil, HTTPError{StatusCode: http.StatusBadRequest, Reason: "PeerName is required in the payload when generating a new peering token."}
 	}
@@ -99,7 +113,15 @@ func (s *HTTPHandlers) PeeringGenerateToken(resp http.ResponseWriter, req *http.
 		args.Partition = entMeta.PartitionOrEmpty()
 	}
 
-	out, err := s.agent.rpcClientPeering.GenerateToken(req.Context(), args)
+	var token string
+	s.parseToken(req, &token)
+	options := structs.QueryOptions{Token: token}
+	ctx, err := external.ContextWithQueryOptions(req.Context(), options)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := s.agent.rpcClientPeering.GenerateToken(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -114,23 +136,36 @@ func (s *HTTPHandlers) PeeringEstablish(resp http.ResponseWriter, req *http.Requ
 		return nil, HTTPError{StatusCode: http.StatusBadRequest, Reason: "The peering arguments must be provided in the body"}
 	}
 
-	apiRequest := &api.PeeringEstablishRequest{
-		Datacenter: s.agent.config.Datacenter,
-	}
-	if err := lib.DecodeJSON(req.Body, apiRequest); err != nil {
+	var apiRequest api.PeeringEstablishRequest
+	if err := lib.DecodeJSON(req.Body, &apiRequest); err != nil {
 		return nil, HTTPError{StatusCode: http.StatusBadRequest, Reason: fmt.Sprintf("Body decoding failed: %v", err)}
 	}
-	args := pbpeering.NewEstablishRequestFromAPI(apiRequest)
 
+	args := pbpeering.NewEstablishRequestFromAPI(&apiRequest)
 	if args.PeerName == "" {
 		return nil, HTTPError{StatusCode: http.StatusBadRequest, Reason: "PeerName is required in the payload when establishing a peering."}
 	}
-
 	if args.PeeringToken == "" {
 		return nil, HTTPError{StatusCode: http.StatusBadRequest, Reason: "PeeringToken is required in the payload when establishing a peering."}
 	}
 
-	out, err := s.agent.rpcClientPeering.Establish(req.Context(), args)
+	var entMeta acl.EnterpriseMeta
+	if err := s.parseEntMetaPartition(req, &entMeta); err != nil {
+		return nil, err
+	}
+	if args.Partition == "" {
+		args.Partition = entMeta.PartitionOrEmpty()
+	}
+
+	var token string
+	s.parseToken(req, &token)
+	options := structs.QueryOptions{Token: token}
+	ctx, err := external.ContextWithQueryOptions(req.Context(), options)
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := s.agent.rpcClientPeering.Establish(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -141,17 +176,24 @@ func (s *HTTPHandlers) PeeringEstablish(resp http.ResponseWriter, req *http.Requ
 // peeringDelete initiates a deletion for a peering that matches the name and partition.
 // This assumes that the name and partition parameters are valid.
 func (s *HTTPHandlers) peeringDelete(resp http.ResponseWriter, req *http.Request, name string) (interface{}, error) {
-	args := pbpeering.PeeringDeleteRequest{
-		Name:       name,
-		Datacenter: s.agent.config.Datacenter,
-	}
 	var entMeta acl.EnterpriseMeta
 	if err := s.parseEntMetaPartition(req, &entMeta); err != nil {
 		return nil, err
 	}
-	args.Partition = entMeta.PartitionOrEmpty()
+	args := pbpeering.PeeringDeleteRequest{
+		Name:      name,
+		Partition: entMeta.PartitionOrEmpty(),
+	}
 
-	_, err := s.agent.rpcClientPeering.PeeringDelete(req.Context(), &args)
+	var token string
+	s.parseToken(req, &token)
+	options := structs.QueryOptions{Token: token}
+	ctx, err := external.ContextWithQueryOptions(req.Context(), options)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = s.agent.rpcClientPeering.PeeringDelete(ctx, &args)
 	if err != nil {
 		return nil, err
 	}

@@ -1,8 +1,14 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import resolve from 'consul-ui/utils/path/resolve';
 import { module, test } from 'qunit';
 
-module('Unit | Utility | path/resolve', function() {
-  test('it resolves paths', function(assert) {
+module('Unit | Utility | path/resolve', function () {
+  test('it resolves paths', function (assert) {
+    assert.expect(9);
     [
       {
         from: 'dc/intentions/create',
@@ -49,7 +55,7 @@ module('Unit | Utility | path/resolve', function() {
         to: '/deep/edit',
         expected: '/deep/edit',
       },
-    ].forEach(item => {
+    ].forEach((item) => {
       const actual = resolve(item.from, item.to);
       assert.equal(
         actual,

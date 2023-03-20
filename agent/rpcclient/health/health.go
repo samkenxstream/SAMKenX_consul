@@ -3,10 +3,12 @@ package health
 import (
 	"context"
 
+	"google.golang.org/grpc/connectivity"
+
 	"github.com/hashicorp/consul/agent/cache"
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/agent/submatview"
-	"github.com/hashicorp/consul/proto/pbsubscribe"
+	"github.com/hashicorp/consul/proto/private/pbsubscribe"
 )
 
 // Client provides access to service health data.
@@ -21,7 +23,7 @@ type Client struct {
 }
 
 type NetRPC interface {
-	RPC(method string, args interface{}, reply interface{}) error
+	RPC(ctx context.Context, method string, args interface{}, reply interface{}) error
 }
 
 type CacheGetter interface {
@@ -32,6 +34,16 @@ type CacheGetter interface {
 type MaterializedViewStore interface {
 	Get(ctx context.Context, req submatview.Request) (submatview.Result, error)
 	NotifyCallback(ctx context.Context, req submatview.Request, cID string, cb cache.Callback) error
+}
+
+// IsReadyForStreaming will indicate if the underlying gRPC connection is ready.
+func (c *Client) IsReadyForStreaming() bool {
+	conn := c.MaterializerDeps.Conn
+	if conn == nil {
+		return false
+	}
+
+	return conn.GetState() == connectivity.Ready
 }
 
 func (c *Client) ServiceNodes(
@@ -59,7 +71,7 @@ func (c *Client) ServiceNodes(
 	// TODO: DNSServer emitted a metric here, do we still need it?
 	if req.QueryOptions.AllowStale && req.QueryOptions.MaxStaleDuration > 0 && out.QueryMeta.LastContact > req.MaxStaleDuration {
 		req.AllowStale = false
-		err := c.NetRPC.RPC("Health.ServiceNodes", &req, &out)
+		err := c.NetRPC.RPC(context.Background(), "Health.ServiceNodes", &req, &out)
 		return out, cache.ResultMeta{}, err
 	}
 
@@ -72,7 +84,7 @@ func (c *Client) getServiceNodes(
 ) (structs.IndexedCheckServiceNodes, cache.ResultMeta, error) {
 	var out structs.IndexedCheckServiceNodes
 	if !req.QueryOptions.UseCache {
-		err := c.NetRPC.RPC("Health.ServiceNodes", &req, &out)
+		err := c.NetRPC.RPC(context.Background(), "Health.ServiceNodes", &req, &out)
 		return out, cache.ResultMeta{}, err
 	}
 
@@ -136,14 +148,14 @@ func (r serviceRequest) Type() string {
 }
 
 func (r serviceRequest) NewMaterializer() (submatview.Materializer, error) {
-	view, err := newHealthView(r.ServiceSpecificRequest)
+	view, err := NewHealthView(r.ServiceSpecificRequest)
 	if err != nil {
 		return nil, err
 	}
 	deps := submatview.Deps{
 		View:    view,
 		Logger:  r.deps.Logger,
-		Request: newMaterializerRequest(r.ServiceSpecificRequest),
+		Request: NewMaterializerRequest(r.ServiceSpecificRequest),
 	}
 
 	return submatview.NewRPCMaterializer(pbsubscribe.NewStateChangeSubscriptionClient(r.deps.Conn), deps), nil

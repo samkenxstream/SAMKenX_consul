@@ -6,7 +6,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/hashicorp/consul/agent/consul/stream"
-	"github.com/hashicorp/consul/proto/pbsubscribe"
+	"github.com/hashicorp/consul/proto/private/pbsubscribe"
 )
 
 // ReadTxn is implemented by memdb.Txn to perform read operations.
@@ -57,7 +57,7 @@ type changeTrackerDB struct {
 
 type EventPublisher interface {
 	Publish([]stream.Event)
-	RegisterHandler(stream.Topic, stream.SnapshotFunc) error
+	RegisterHandler(stream.Topic, stream.SnapshotFunc, bool) error
 	Subscribe(*stream.SubscribeRequest) (*stream.Subscription, error)
 }
 
@@ -180,6 +180,17 @@ func (db *readDB) ReadTxn() AbortTxn {
 var (
 	EventTopicServiceHealth        = pbsubscribe.Topic_ServiceHealth
 	EventTopicServiceHealthConnect = pbsubscribe.Topic_ServiceHealthConnect
+	EventTopicMeshConfig           = pbsubscribe.Topic_MeshConfig
+	EventTopicServiceResolver      = pbsubscribe.Topic_ServiceResolver
+	EventTopicIngressGateway       = pbsubscribe.Topic_IngressGateway
+	EventTopicServiceIntentions    = pbsubscribe.Topic_ServiceIntentions
+	EventTopicServiceDefaults      = pbsubscribe.Topic_ServiceDefaults
+	EventTopicServiceList          = pbsubscribe.Topic_ServiceList
+	EventTopicAPIGateway           = pbsubscribe.Topic_APIGateway
+	EventTopicTCPRoute             = pbsubscribe.Topic_TCPRoute
+	EventTopicHTTPRoute            = pbsubscribe.Topic_HTTPRoute
+	EventTopicInlineCertificate    = pbsubscribe.Topic_InlineCertificate
+	EventTopicBoundAPIGateway      = pbsubscribe.Topic_BoundAPIGateway
 )
 
 func processDBChanges(tx ReadTxn, changes Changes) ([]stream.Event, error) {
@@ -188,6 +199,8 @@ func processDBChanges(tx ReadTxn, changes Changes) ([]stream.Event, error) {
 		aclChangeUnsubscribeEvent,
 		caRootsChangeEvents,
 		ServiceHealthEventsFromChanges,
+		ServiceListUpdateEventsFromChanges,
+		ConfigEntryEventsFromChanges,
 		// TODO: add other table handlers here.
 	}
 	for _, fn := range fns {

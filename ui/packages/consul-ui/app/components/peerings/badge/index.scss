@@ -1,0 +1,46 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+.peerings-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 5px;
+  gap: 4px;
+
+  &.active {
+    background: var(--token-color-surface-success);
+    color: var(--token-color-foreground-success);
+  }
+  &.pending {
+    background: var(--token-color-consul-surface);
+    color: var(--token-color-consul-brand);
+  }
+  &.establishing {
+    background: var(--token-color-surface-action);
+    color: var(--token-color-foreground-action);
+  }
+  &.failing {
+    background: var(--token-color-surface-critical);
+    color: var(--token-color-foreground-critical);
+  }
+  &.deleting {
+    background: var(--token-color-surface-warning);
+    color: var(--token-color-foreground-warning-on-surface);
+  }
+  &.terminated {
+    background: var(--token-color-surface-interactive-active);
+    color: var(--token-color-foreground-primary);
+  }
+  &.undefined {
+    background: var(--token-color-surface-interactive-active);
+    color: var(--token-color-foreground-primary);
+  }
+
+  .peerings-badge__text {
+    @extend %body-100-medium;
+  }
+}

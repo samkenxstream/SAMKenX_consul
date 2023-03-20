@@ -27,9 +27,15 @@ type BootstrapTplArgs struct {
 	// TLS is enabled.
 	AgentCAPEM string
 
+	// AdminAccessLogConfig string representations of Envoy access log
+	// configurations for the admin interface.
+	AdminAccessLogConfig []string
+
 	// AdminAccessLogPath The path to write the access log for the
 	// administration server. If no access log is desired specify
-	// "/dev/null". By default it will use "/dev/null".
+	// "/dev/null". By default it will use "/dev/null". Will be overriden by
+	// AdminAccessLogConfig.
+	// DEPRECATED: use AdminAccessLogConfig
 	AdminAccessLogPath string
 
 	// AdminBindAddress is the address the Envoy admin server should bind to.
@@ -76,6 +82,10 @@ type BootstrapTplArgs struct {
 	// https://www.envoyproxy.io/docs/envoy/v1.9.0/api-v2/config/metrics/v2/stats.proto#envoy-api-msg-config-metrics-v2-statsconfig.
 	StatsConfigJSON string
 
+	// StaticSecretsJSON is a JSON string containing zero or more Secret definitions.
+	// See https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/secret.proto#envoy-v3-api-msg-extensions-transport-sockets-tls-v3-secret
+	StaticSecretsJSON string
+
 	// StatsFlushInterval is the time duration between Envoy stats flushes. It is
 	// in proto3 "duration" string format for example "1.12s" See
 	// https://developers.google.com/protocol-buffers/docs/proto3#json and
@@ -106,6 +116,22 @@ type BootstrapTplArgs struct {
 	// PrometheusScrapePath will configure the path where metrics are exposed on
 	// the envoy_prometheus_bind_addr listener.
 	PrometheusScrapePath string
+
+	// PrometheusCAFile is the path to a CA file for Envoy to use when serving TLS on the Prometheius metrics
+	// endpoint. Only applicable when envoy_prometheus_bind_addr is set in the proxy config.
+	PrometheusCAFile string
+
+	// PrometheusCAPath is the path to a directory of CA certificates for Envoy to use when serving the Prometheus
+	// metrics endpoint. Only applicable when envoy_prometheus_bind_addr is set in the proxy config.
+	PrometheusCAPath string
+
+	// PrometheusCertFile is the path to a certificate file for Envoy to use when serving TLS on the Prometheus
+	// metrics endpoint. Only applicable when envoy_prometheus_bind_addr is set in the proxy config.
+	PrometheusCertFile string
+
+	// PrometheusKeyFile is the path to a private key file Envoy to use when serving TLS on the Prometheus metrics
+	// endpoint. Only applicable when envoy_prometheus_bind_addr is set in the proxy config.
+	PrometheusKeyFile string
 }
 
 // GRPC settings used in the bootstrap template.
@@ -131,7 +157,16 @@ type GRPC struct {
 // config.
 const bootstrapTemplate = `{
   "admin": {
+	{{- if (not .AdminAccessLogConfig) }}
     "access_log_path": "{{ .AdminAccessLogPath }}",
+	{{- end}}
+	{{- if .AdminAccessLogConfig }}
+    "access_log": [
+	{{- range $index, $element := .AdminAccessLogConfig}}
+        {{if $index}},{{end}}
+        {{$element}}
+    {{end}}],
+	{{- end}}
     "address": {
       "socket_address": {
         "address": "{{ .AdminBindAddress }}",
@@ -149,6 +184,16 @@ const bootstrapTemplate = `{
       "namespace": "{{if ne .Namespace ""}}{{ .Namespace }}{{else}}default{{end}}",
       "partition": "{{if ne .Partition ""}}{{ .Partition }}{{else}}default{{end}}"
     }
+  },
+  "layered_runtime": {
+    "layers": [
+      {
+        "name": "base",
+        "static_layer": {
+          "re2.max_program_size.error_level": 1048576
+        }
+      }
+    ]
   },
   "static_resources": {
     "clusters": [
@@ -209,9 +254,17 @@ const bootstrapTemplate = `{
       {{ .StaticListenersJSON }}
     ]
     {{- end }}
+    {{- if .StaticSecretsJSON -}}
+    ,
+    "secrets": [
+      {{ .StaticSecretsJSON }}
+    ]
+    {{- end }}
   },
   {{- if .StatsSinksJSON }}
-  "stats_sinks": {{ .StatsSinksJSON }},
+  "stats_sinks": [
+    {{ .StatsSinksJSON }}
+  ],
   {{- end }}
   {{- if .StatsConfigJSON }}
   "stats_config": {{ .StatsConfigJSON }},

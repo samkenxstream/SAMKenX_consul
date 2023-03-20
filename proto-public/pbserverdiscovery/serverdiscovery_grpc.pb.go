@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             (unknown)
-// source: proto-public/pbserverdiscovery/serverdiscovery.proto
+// source: pbserverdiscovery/serverdiscovery.proto
 
 package pbserverdiscovery
 
@@ -38,7 +38,7 @@ func NewServerDiscoveryServiceClient(cc grpc.ClientConnInterface) ServerDiscover
 }
 
 func (c *serverDiscoveryServiceClient) WatchServers(ctx context.Context, in *WatchServersRequest, opts ...grpc.CallOption) (ServerDiscoveryService_WatchServersClient, error) {
-	stream, err := c.cc.NewStream(ctx, &ServerDiscoveryService_ServiceDesc.Streams[0], "/serverdiscovery.ServerDiscoveryService/WatchServers", opts...)
+	stream, err := c.cc.NewStream(ctx, &ServerDiscoveryService_ServiceDesc.Streams[0], "/hashicorp.consul.serverdiscovery.ServerDiscoveryService/WatchServers", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (x *serverDiscoveryServiceWatchServersServer) Send(m *WatchServersResponse)
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var ServerDiscoveryService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "serverdiscovery.ServerDiscoveryService",
+	ServiceName: "hashicorp.consul.serverdiscovery.ServerDiscoveryService",
 	HandlerType: (*ServerDiscoveryServiceServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
@@ -134,5 +134,5 @@ var ServerDiscoveryService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "proto-public/pbserverdiscovery/serverdiscovery.proto",
+	Metadata: "pbserverdiscovery/serverdiscovery.proto",
 }

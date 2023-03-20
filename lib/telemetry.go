@@ -12,9 +12,11 @@ import (
 	"github.com/armon/go-metrics/circonus"
 	"github.com/armon/go-metrics/datadog"
 	"github.com/armon/go-metrics/prometheus"
-	"github.com/hashicorp/consul/lib/retry"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-multierror"
+	prometheuscore "github.com/prometheus/client_golang/prometheus"
+
+	"github.com/hashicorp/consul/lib/retry"
 )
 
 // TelemetryConfig is embedded in config.RuntimeConfig and holds the
@@ -139,11 +141,6 @@ type TelemetryConfig struct {
 	// hcl: telemetry { circonus_submission_url = string }
 	CirconusSubmissionURL string `json:"circonus_submission_url,omitempty" mapstructure:"circonus_submission_url"`
 
-	// DisableCompatOneNine is a flag to stop emitting metrics that have been deprecated in version 1.9.
-	//
-	// hcl: telemetry { disable_compat_1.9 = (true|false) }
-	DisableCompatOneNine bool `json:"disable_compat_1.9,omitempty" mapstructure:"disable_compat_1.9"`
-
 	// DisableHostname will disable hostname prefixing for all metrics.
 	//
 	// hcl: telemetry { disable_hostname = (true|false)
@@ -262,7 +259,7 @@ func dogstatdSink(cfg TelemetryConfig, hostname string) (metrics.MetricSink, err
 	return sink, nil
 }
 
-func prometheusSink(cfg TelemetryConfig, hostname string) (metrics.MetricSink, error) {
+func prometheusSink(cfg TelemetryConfig, _ string) (metrics.MetricSink, error) {
 
 	if cfg.PrometheusOpts.Expiration.Nanoseconds() < 1 {
 		return nil, nil
@@ -270,12 +267,19 @@ func prometheusSink(cfg TelemetryConfig, hostname string) (metrics.MetricSink, e
 
 	sink, err := prometheus.NewPrometheusSinkFrom(cfg.PrometheusOpts)
 	if err != nil {
+		// During testing we may try to register the same metrics collector
+		// multiple times in a single run (e.g. a metrics test fails and
+		// we attempt a retry), resulting in an AlreadyRegisteredError.
+		// Suppress this and move on.
+		if errors.As(err, &prometheuscore.AlreadyRegisteredError{}) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return sink, nil
 }
 
-func circonusSink(cfg TelemetryConfig, hostname string) (metrics.MetricSink, error) {
+func circonusSink(cfg TelemetryConfig, _ string) (metrics.MetricSink, error) {
 	token := cfg.CirconusAPIToken
 	url := cfg.CirconusSubmissionURL
 	if token == "" && url == "" {
@@ -340,7 +344,6 @@ func configureSinks(cfg TelemetryConfig, memSink metrics.MetricSink) (metrics.Fa
 	addSink(statsiteSink)
 	addSink(statsdSink)
 	addSink(dogstatdSink)
-	addSink(circonusSink)
 	addSink(circonusSink)
 	addSink(prometheusSink)
 

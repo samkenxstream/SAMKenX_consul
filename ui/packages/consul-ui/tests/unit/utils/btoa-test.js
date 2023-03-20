@@ -1,9 +1,14 @@
-import { module } from 'qunit';
-import test from 'ember-sinon-qunit/test-support/test';
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+import { module, test } from 'qunit';
 import btoa from 'consul-ui/utils/btoa';
 
-module('Unit | Utils | btoa', function() {
-  test('it encodes strings properly', function(assert) {
+module('Unit | Utils | btoa', function () {
+  test('it encodes strings properly', function (assert) {
+    assert.expect(2);
     [
       {
         test: '',
@@ -13,7 +18,7 @@ module('Unit | Utils | btoa', function() {
         test: '1234',
         expected: 'MTIzNA==',
       },
-    ].forEach(function(item) {
+    ].forEach(function (item) {
       const actual = btoa(item.test);
       assert.equal(actual, item.expected);
     });

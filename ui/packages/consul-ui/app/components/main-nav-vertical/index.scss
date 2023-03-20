@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 @import './skin';
 @import './layout';
 /* things that should look like nav buttons */
@@ -8,9 +13,8 @@
   @extend %main-nav-vertical-item;
 }
 /**/
-
 /* actual clickable button-y things plus states */
-%main-nav-vertical > ul > li > a {
+%main-nav-vertical a {
   @extend %main-nav-vertical-action;
 }
 %main-nav-vertical > ul > li.is-active > a {

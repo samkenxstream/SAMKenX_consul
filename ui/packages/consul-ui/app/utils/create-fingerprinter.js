@@ -1,8 +1,14 @@
-import { get } from '@ember/object';
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
 
-export default function(foreignKey, nspaceKey, partitionKey, hash = JSON.stringify) {
-  return function(primaryKey, slugKey, foreignKeyValue, nspaceValue, partitionValue) {
-    return function(item) {
+import { get } from '@ember/object';
+import { isEmpty } from '@ember/utils';
+
+export default function (foreignKey, nspaceKey, partitionKey, hash = JSON.stringify) {
+  return function (primaryKey, slugKey, foreignKeyValue, nspaceValue, partitionValue) {
+    return function (item) {
       foreignKeyValue = foreignKeyValue == null ? item[foreignKey] : foreignKeyValue;
       if (foreignKeyValue == null) {
         throw new Error(
@@ -10,15 +16,24 @@ export default function(foreignKey, nspaceKey, partitionKey, hash = JSON.stringi
         );
       }
       const slugKeys = slugKey.split(',');
-      const slugValues = slugKeys.map(function(slugKey) {
-        const slug = get(item, slugKey);
-        if (slug == null || slug.length < 1) {
-          throw new Error(
-            `Unable to create fingerprint, missing slug. Looking for value in \`${slugKey}\` got \`${slug}\``
-          );
-        }
-        return slug;
-      });
+      const slugValues = slugKeys
+        .map(function (slugKey) {
+          const slug = get(item, slugKey);
+
+          const isSlugEmpty = isEmpty(slug);
+
+          if (isSlugEmpty) {
+            // PeerName should be optional as part of id
+            if (slugKey === 'PeerName') {
+              return;
+            }
+            throw new Error(
+              `Unable to create fingerprint, missing slug. Looking for value in \`${slugKey}\` got \`${slug}\``
+            );
+          }
+          return slug;
+        })
+        .compact();
       // This ensures that all data objects have a Namespace and a Partition
       // value set, even in OSS.
       if (typeof item[nspaceKey] === 'undefined') {

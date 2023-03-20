@@ -1,9 +1,14 @@
+{{!
+  Copyright (c) HashiCorp, Inc.
+  SPDX-License-Identifier: MPL-2.0
+}}
+
 <Route
   @name={{routeName}}
 as |route|>
 
   <DataLoader @src={{
-      uri '/${partition}/${nspace}/${dc}/services'
+    uri '/${partition}/${nspace}/${dc}/services'
       (hash
         partition=route.params.partition
         nspace=route.params.nspace
@@ -43,10 +48,10 @@ as |route|>
     searchproperty=(hash
       value=(if (not-eq searchproperty undefined)
         (split searchproperty ',')
-        searchProperties
+        this._searchProperties
       )
       change=(action (mut searchproperty) value="target.selectedItems")
-      default=searchProperties
+      default=this._searchProperties
     )
 
   )
@@ -113,25 +118,28 @@ as |sort filters items partition nspace|}}
               <BlockSlot @name="body">
                 {{t 'routes.dc.services.index.empty.body'
                   items=items.length
+                  canUseACLs=(can "use acls")
                   htmlSafe=true
                 }}
               </BlockSlot>
               <BlockSlot @name="actions">
-                <li class="docs-link">
-                  <Action
+                <li>
+                  <Hds::Link::Standalone
+                    @text='Documentation on Services'
                     @href="{{env 'CONSUL_DOCS_URL'}}/commands/services"
-                    @external={{true}}
-                  >
-                    Documentation on Services
-                  </Action>
+                    @icon='docs-link'
+                    @iconPosition='trailing'
+                    @size='small'
+                  />
                 </li>
-                <li class="learn-link">
-                  <Action
+                <li>
+                  <Hds::Link::Standalone
+                    @text='Take the tutorial'
                     @href="{{env 'CONSUL_DOCS_LEARN_URL'}}/consul/getting-started/services"
-                    @external={{true}}
-                  >
-                    Take the tutorial
-                  </Action>
+                    @icon='learn-link'
+                    @iconPosition='trailing'
+                    @size='small'
+                  />
                 </li>
               </BlockSlot>
             </EmptyState>

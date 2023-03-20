@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { action } from '@ember/object';
@@ -59,7 +64,7 @@ export default class Outlet extends Component {
         }
         break;
       case 'model':
-        if(typeof this.route !== 'undefined') {
+        if (typeof this.route !== 'undefined') {
           this.route._model = value;
         }
         break;
@@ -79,10 +84,14 @@ export default class Outlet extends Component {
       this.previousState = this.state;
       this.state = new State('loading');
       this.endTransition = this.routlet.transition();
-      // if we have no transition-duration set immediately end the transition
-      const duration = window
-        .getComputedStyle(this.element)
-        .getPropertyValue('transition-duration');
+      let duration;
+      if (this.element) {
+        // if we have no transition-duration set immediately end the transition
+        duration = window.getComputedStyle(this.element).getPropertyValue('transition-duration');
+      } else {
+        duration = 0;
+      }
+
       if (parseFloat(duration) === 0) {
         this.endTransition();
       }

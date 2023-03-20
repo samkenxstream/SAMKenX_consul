@@ -3,13 +3,14 @@ package submatview
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/consul/proto/pbcommon"
 	"sync"
+
+	"github.com/hashicorp/consul/proto/private/pbcommon"
 
 	"google.golang.org/grpc"
 
-	"github.com/hashicorp/consul/proto/pbservice"
-	"github.com/hashicorp/consul/proto/pbsubscribe"
+	"github.com/hashicorp/consul/proto/private/pbservice"
+	"github.com/hashicorp/consul/proto/private/pbsubscribe"
 	"github.com/hashicorp/consul/types"
 )
 
@@ -36,9 +37,9 @@ func (s *TestStreamingClient) Subscribe(
 	req *pbsubscribe.SubscribeRequest,
 	_ ...grpc.CallOption,
 ) (pbsubscribe.StateChangeSubscription_SubscribeClient, error) {
-	if req.Namespace != s.expectedNamespace {
-		return nil, fmt.Errorf("wrong SubscribeRequest.Namespace %v, expected %v",
-			req.Namespace, s.expectedNamespace)
+	if ns := req.GetNamedSubject().GetNamespace(); ns != s.expectedNamespace {
+		return nil, fmt.Errorf("wrong SubscribeRequest.NamedSubject.Namespace %v, expected %v",
+			ns, s.expectedNamespace)
 	}
 	c := &subscribeClient{
 		events: make(chan eventOrErr, 32),

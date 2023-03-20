@@ -1,6 +1,7 @@
 package cachetype
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -180,7 +181,7 @@ func TestConnectCALeaf_changingRoots(t *testing.T) {
 	var resp *structs.IssuedCert
 	var idx uint64
 
-	rpc.On("RPC", "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
+	rpc.On("RPC", mock.Anything, "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
 		Run(func(args mock.Arguments) {
 			ca := caRoot
 			cIdx := atomic.AddUint64(&idx, 1)
@@ -188,7 +189,7 @@ func TestConnectCALeaf_changingRoots(t *testing.T) {
 				// Second time round use the new CA
 				ca = caRoot2
 			}
-			reply := args.Get(2).(*structs.IssuedCert)
+			reply := args.Get(3).(*structs.IssuedCert)
 			leaf, _ := connect.TestLeaf(t, "web", ca)
 			reply.CertPEM = leaf
 			reply.ValidAfter = time.Now().Add(-1 * time.Hour)
@@ -291,9 +292,9 @@ func TestConnectCALeaf_changingRootsJitterBetweenCalls(t *testing.T) {
 	// Instrument ConnectCA.Sign to return signed cert
 	var resp *structs.IssuedCert
 	var idx uint64
-	rpc.On("RPC", "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
+	rpc.On("RPC", mock.Anything, "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
 		Run(func(args mock.Arguments) {
-			reply := args.Get(2).(*structs.IssuedCert)
+			reply := args.Get(3).(*structs.IssuedCert)
 			leaf, _ := connect.TestLeaf(t, "web", caRoot)
 			reply.CertPEM = leaf
 			reply.ValidAfter = time.Now().Add(-1 * time.Hour)
@@ -432,9 +433,9 @@ func TestConnectCALeaf_changingRootsBetweenBlockingCalls(t *testing.T) {
 	// Instrument ConnectCA.Sign to return signed cert
 	var resp *structs.IssuedCert
 	var idx uint64
-	rpc.On("RPC", "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
+	rpc.On("RPC", mock.Anything, "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
 		Run(func(args mock.Arguments) {
-			reply := args.Get(2).(*structs.IssuedCert)
+			reply := args.Get(3).(*structs.IssuedCert)
 			leaf, _ := connect.TestLeaf(t, "web", caRoot)
 			reply.CertPEM = leaf
 			reply.ValidAfter = time.Now().Add(-1 * time.Hour)
@@ -547,7 +548,7 @@ func TestConnectCALeaf_CSRRateLimiting(t *testing.T) {
 	var idx, rateLimitedRPCs uint64
 
 	genCert := func(args mock.Arguments) {
-		reply := args.Get(2).(*structs.IssuedCert)
+		reply := args.Get(3).(*structs.IssuedCert)
 		leaf, _ := connect.TestLeaf(t, "web", caRoot)
 		reply.CertPEM = leaf
 		reply.ValidAfter = time.Now().Add(-1 * time.Hour)
@@ -564,16 +565,16 @@ func TestConnectCALeaf_CSRRateLimiting(t *testing.T) {
 	// First call return rate limit error. This is important as it checks
 	// behavior when cache is empty and we have to return a nil Value but need to
 	// save state to do the right thing for retry.
-	rpc.On("RPC", "ConnectCA.Sign", mock.Anything, mock.Anything).
+	rpc.On("RPC", mock.Anything, "ConnectCA.Sign", mock.Anything, mock.Anything).
 		Return(consul.ErrRateLimited).Once().Run(incRateLimit)
 	// Then succeed on second call
-	rpc.On("RPC", "ConnectCA.Sign", mock.Anything, mock.Anything).
+	rpc.On("RPC", mock.Anything, "ConnectCA.Sign", mock.Anything, mock.Anything).
 		Return(nil).Run(genCert).Once()
 	// Then be rate limited again on several further calls
-	rpc.On("RPC", "ConnectCA.Sign", mock.Anything, mock.Anything).
+	rpc.On("RPC", mock.Anything, "ConnectCA.Sign", mock.Anything, mock.Anything).
 		Return(consul.ErrRateLimited).Twice().Run(incRateLimit)
 	// Then fine after that
-	rpc.On("RPC", "ConnectCA.Sign", mock.Anything, mock.Anything).
+	rpc.On("RPC", mock.Anything, "ConnectCA.Sign", mock.Anything, mock.Anything).
 		Return(nil).Run(genCert)
 
 	opts := cache.FetchOptions{MinIndex: 0, Timeout: 10 * time.Minute}
@@ -726,9 +727,9 @@ func TestConnectCALeaf_watchRootsDedupingMultipleCallers(t *testing.T) {
 
 	// Instrument ConnectCA.Sign to return signed cert
 	var idx uint64
-	rpc.On("RPC", "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
+	rpc.On("RPC", mock.Anything, "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
 		Run(func(args mock.Arguments) {
-			reply := args.Get(2).(*structs.IssuedCert)
+			reply := args.Get(3).(*structs.IssuedCert)
 			// Note we will sign certs for same service name each time because
 			// otherwise we have to re-invent whole CSR endpoint here to be able to
 			// control things - parse PEM sign with right key etc. It doesn't matter -
@@ -923,9 +924,9 @@ func TestConnectCALeaf_expiringLeaf(t *testing.T) {
 	// Instrument ConnectCA.Sign to
 	var resp *structs.IssuedCert
 	var idx uint64
-	rpc.On("RPC", "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
+	rpc.On("RPC", mock.Anything, "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
 		Run(func(args mock.Arguments) {
-			reply := args.Get(2).(*structs.IssuedCert)
+			reply := args.Get(3).(*structs.IssuedCert)
 			reply.CreateIndex = atomic.AddUint64(&idx, 1)
 			reply.ModifyIndex = reply.CreateIndex
 
@@ -1016,13 +1017,13 @@ func TestConnectCALeaf_DNSSANForService(t *testing.T) {
 
 	// Instrument ConnectCA.Sign to
 	var caReq *structs.CASignRequest
-	rpc.On("RPC", "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
+	rpc.On("RPC", mock.Anything, "ConnectCA.Sign", mock.Anything, mock.Anything).Return(nil).
 		Run(func(args mock.Arguments) {
-			reply := args.Get(2).(*structs.IssuedCert)
+			reply := args.Get(3).(*structs.IssuedCert)
 			leaf, _ := connect.TestLeaf(t, "web", caRoot)
 			reply.CertPEM = leaf
 
-			caReq = args.Get(1).(*structs.CASignRequest)
+			caReq = args.Get(2).(*structs.CASignRequest)
 		})
 
 	opts := cache.FetchOptions{MinIndex: 0, Timeout: 10 * time.Second}
@@ -1093,7 +1094,7 @@ type testGatedRootsRPC struct {
 	ValueCh chan structs.IndexedCARoots
 }
 
-func (r *testGatedRootsRPC) RPC(method string, args interface{}, reply interface{}) error {
+func (r *testGatedRootsRPC) RPC(ctx context.Context, method string, args interface{}, reply interface{}) error {
 	if method != "ConnectCA.Roots" {
 		return fmt.Errorf("invalid RPC method: %s", method)
 	}
@@ -1104,29 +1105,71 @@ func (r *testGatedRootsRPC) RPC(method string, args interface{}, reply interface
 }
 
 func TestConnectCALeaf_Key(t *testing.T) {
-	r1 := ConnectCALeafRequest{Service: "web"}
-	r2 := ConnectCALeafRequest{Service: "api"}
-
-	r3 := ConnectCALeafRequest{DNSSAN: []string{"a.com"}}
-	r4 := ConnectCALeafRequest{DNSSAN: []string{"b.com"}}
-
-	r5 := ConnectCALeafRequest{IPSAN: []net.IP{net.ParseIP("192.168.4.139")}}
-	r6 := ConnectCALeafRequest{IPSAN: []net.IP{net.ParseIP("192.168.4.140")}}
-	// hashstructure will hash the service name + ent meta to produce this key
-	r1Key := r1.Key()
-	r2Key := r2.Key()
-
-	r3Key := r3.Key()
-	r4Key := r4.Key()
-
-	r5Key := r5.Key()
-	r6Key := r6.Key()
-
-	require.True(t, strings.HasPrefix(r1Key, "service:"), "Key %s does not start with service:", r1Key)
-	require.True(t, strings.HasPrefix(r2Key, "service:"), "Key %s does not start with service:", r2Key)
-	require.NotEqual(t, r1Key, r2Key, "Cache keys for different services are not equal")
-	require.NotEqual(t, r3Key, r4Key, "Cache keys for different DNSSAN are not equal")
-	require.NotEqual(t, r5Key, r6Key, "Cache keys for different IPSAN are not equal")
-	r := ConnectCALeafRequest{Agent: "abc"}
-	require.Equal(t, "agent:abc", r.Key())
+	key := func(r ConnectCALeafRequest) string {
+		return r.Key()
+	}
+	t.Run("service", func(t *testing.T) {
+		t.Run("name", func(t *testing.T) {
+			r1 := key(ConnectCALeafRequest{Service: "web"})
+			r2 := key(ConnectCALeafRequest{Service: "api"})
+			require.True(t, strings.HasPrefix(r1, "service:"), "Key %s does not start with service:", r1)
+			require.True(t, strings.HasPrefix(r2, "service:"), "Key %s does not start with service:", r2)
+			require.NotEqual(t, r1, r2, "Cache keys for different services should not be equal")
+		})
+		t.Run("dns-san", func(t *testing.T) {
+			r3 := key(ConnectCALeafRequest{Service: "foo", DNSSAN: []string{"a.com"}})
+			r4 := key(ConnectCALeafRequest{Service: "foo", DNSSAN: []string{"b.com"}})
+			require.NotEqual(t, r3, r4, "Cache keys for different DNSSAN should not be equal")
+		})
+		t.Run("ip-san", func(t *testing.T) {
+			r5 := key(ConnectCALeafRequest{Service: "foo", IPSAN: []net.IP{net.ParseIP("192.168.4.139")}})
+			r6 := key(ConnectCALeafRequest{Service: "foo", IPSAN: []net.IP{net.ParseIP("192.168.4.140")}})
+			require.NotEqual(t, r5, r6, "Cache keys for different IPSAN should not be equal")
+		})
+	})
+	t.Run("agent", func(t *testing.T) {
+		t.Run("name", func(t *testing.T) {
+			r1 := key(ConnectCALeafRequest{Agent: "abc"})
+			require.True(t, strings.HasPrefix(r1, "agent:"), "Key %s does not start with agent:", r1)
+		})
+		t.Run("dns-san ignored", func(t *testing.T) {
+			r3 := key(ConnectCALeafRequest{Agent: "foo", DNSSAN: []string{"a.com"}})
+			r4 := key(ConnectCALeafRequest{Agent: "foo", DNSSAN: []string{"b.com"}})
+			require.Equal(t, r3, r4, "DNSSAN is ignored for agent type")
+		})
+		t.Run("ip-san ignored", func(t *testing.T) {
+			r5 := key(ConnectCALeafRequest{Agent: "foo", IPSAN: []net.IP{net.ParseIP("192.168.4.139")}})
+			r6 := key(ConnectCALeafRequest{Agent: "foo", IPSAN: []net.IP{net.ParseIP("192.168.4.140")}})
+			require.Equal(t, r5, r6, "IPSAN is ignored for agent type")
+		})
+	})
+	t.Run("kind", func(t *testing.T) {
+		t.Run("invalid", func(t *testing.T) {
+			r1 := key(ConnectCALeafRequest{Kind: "terminating-gateway"})
+			require.Empty(t, r1)
+		})
+		t.Run("mesh-gateway", func(t *testing.T) {
+			t.Run("normal", func(t *testing.T) {
+				r1 := key(ConnectCALeafRequest{Kind: "mesh-gateway"})
+				require.True(t, strings.HasPrefix(r1, "kind:"), "Key %s does not start with kind:", r1)
+			})
+			t.Run("dns-san", func(t *testing.T) {
+				r3 := key(ConnectCALeafRequest{Kind: "mesh-gateway", DNSSAN: []string{"a.com"}})
+				r4 := key(ConnectCALeafRequest{Kind: "mesh-gateway", DNSSAN: []string{"b.com"}})
+				require.NotEqual(t, r3, r4, "Cache keys for different DNSSAN should not be equal")
+			})
+			t.Run("ip-san", func(t *testing.T) {
+				r5 := key(ConnectCALeafRequest{Kind: "mesh-gateway", IPSAN: []net.IP{net.ParseIP("192.168.4.139")}})
+				r6 := key(ConnectCALeafRequest{Kind: "mesh-gateway", IPSAN: []net.IP{net.ParseIP("192.168.4.140")}})
+				require.NotEqual(t, r5, r6, "Cache keys for different IPSAN should not be equal")
+			})
+		})
+	})
+	t.Run("server", func(t *testing.T) {
+		r1 := key(ConnectCALeafRequest{
+			Server:     true,
+			Datacenter: "us-east",
+		})
+		require.True(t, strings.HasPrefix(r1, "server:"), "Key %s does not start with server:", r1)
+	})
 }

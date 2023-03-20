@@ -1,8 +1,13 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import { getAlternateServices } from 'consul-ui/components/consul/discovery-chain/utils';
 import { module, test } from 'qunit';
 
-module('Unit | Component | consul/discovery-chain/get-alternative-services', function() {
-  test('it guesses a different namespace', function(assert) {
+module('Unit | Component | consul/discovery-chain/get-alternative-services', function () {
+  test('it guesses a different namespace', function (assert) {
     const expected = {
       Type: 'Namespace',
       Targets: ['different-ns', 'different-ns2'],
@@ -14,7 +19,7 @@ module('Unit | Component | consul/discovery-chain/get-alternative-services', fun
     assert.equal(actual.Type, expected.Type);
     assert.deepEqual(actual.Targets, expected.Targets);
   });
-  test('it guesses a different datacenter', function(assert) {
+  test('it guesses a different datacenter', function (assert) {
     const expected = {
       Type: 'Datacenter',
       Targets: ['dc1', 'dc2'],
@@ -26,7 +31,7 @@ module('Unit | Component | consul/discovery-chain/get-alternative-services', fun
     assert.equal(actual.Type, expected.Type);
     assert.deepEqual(actual.Targets, expected.Targets);
   });
-  test('it guesses a different service', function(assert) {
+  test('it guesses a different service', function (assert) {
     const expected = {
       Type: 'Service',
       Targets: ['service-2', 'service-3'],
@@ -38,7 +43,7 @@ module('Unit | Component | consul/discovery-chain/get-alternative-services', fun
     assert.equal(actual.Type, expected.Type);
     assert.deepEqual(actual.Targets, expected.Targets);
   });
-  test('it guesses a different subset', function(assert) {
+  test('it guesses a different subset', function (assert) {
     const expected = {
       Type: 'Subset',
       Targets: ['v3', 'v2'],

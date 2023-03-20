@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 /*eslint node/no-extraneous-require: "off"*/
 'use strict';
 
@@ -13,7 +18,7 @@ module.exports = {
    * Make any CSS available for import within app/components/component-name:
    * @import 'app-name/components/component-name/index.scss'
    */
-  treeForStyles: function(tree) {
+  treeForStyles: function (tree) {
     let debug = read(`${this.project.root}/app/styles/debug.scss`);
     if (['production', 'test'].includes(process.env.EMBER_ENV)) {
       debug = '';

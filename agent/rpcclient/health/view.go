@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/hashicorp/consul/agent/structs"
-	"github.com/hashicorp/consul/proto/pbservice"
-	"github.com/hashicorp/consul/proto/pbsubscribe"
+	"github.com/hashicorp/consul/proto/private/pbservice"
+	"github.com/hashicorp/consul/proto/private/pbsubscribe"
 )
 
 type MaterializerDeps struct {
@@ -21,17 +21,21 @@ type MaterializerDeps struct {
 	Logger hclog.Logger
 }
 
-func newMaterializerRequest(srvReq structs.ServiceSpecificRequest) func(index uint64) *pbsubscribe.SubscribeRequest {
+func NewMaterializerRequest(srvReq structs.ServiceSpecificRequest) func(index uint64) *pbsubscribe.SubscribeRequest {
 	return func(index uint64) *pbsubscribe.SubscribeRequest {
 		req := &pbsubscribe.SubscribeRequest{
-			Topic:      pbsubscribe.Topic_ServiceHealth,
-			Key:        srvReq.ServiceName,
+			Topic: pbsubscribe.Topic_ServiceHealth,
+			Subject: &pbsubscribe.SubscribeRequest_NamedSubject{
+				NamedSubject: &pbsubscribe.NamedSubject{
+					Key:       srvReq.ServiceName,
+					Namespace: srvReq.EnterpriseMeta.NamespaceOrEmpty(),
+					Partition: srvReq.EnterpriseMeta.PartitionOrEmpty(),
+					PeerName:  srvReq.PeerName,
+				},
+			},
 			Token:      srvReq.Token,
 			Datacenter: srvReq.Datacenter,
 			Index:      index,
-			Namespace:  srvReq.EnterpriseMeta.NamespaceOrEmpty(),
-			Partition:  srvReq.EnterpriseMeta.PartitionOrEmpty(),
-			PeerName:   srvReq.PeerName,
 		}
 		if srvReq.Connect {
 			req.Topic = pbsubscribe.Topic_ServiceHealthConnect
@@ -40,29 +44,33 @@ func newMaterializerRequest(srvReq structs.ServiceSpecificRequest) func(index ui
 	}
 }
 
-func newHealthView(req structs.ServiceSpecificRequest) (*healthView, error) {
+func NewHealthView(req structs.ServiceSpecificRequest) (*HealthView, error) {
 	fe, err := newFilterEvaluator(req)
 	if err != nil {
 		return nil, err
 	}
-	return &healthView{
-		state:  make(map[string]structs.CheckServiceNode),
-		filter: fe,
+	return &HealthView{
+		state:   make(map[string]structs.CheckServiceNode),
+		filter:  fe,
+		connect: req.Connect,
+		kind:    req.ServiceKind,
 	}, nil
 }
 
-// healthView implements submatview.View for storing the view state
+// HealthView implements submatview.View for storing the view state
 // of a service health result. We store it as a map to make updates and
 // deletions a little easier but we could just store a result type
 // (IndexedCheckServiceNodes) and update it in place for each event - that
 // involves re-sorting each time etc. though.
-type healthView struct {
-	state  map[string]structs.CheckServiceNode
-	filter filterEvaluator
+type HealthView struct {
+	connect bool
+	kind    structs.ServiceKind
+	state   map[string]structs.CheckServiceNode
+	filter  filterEvaluator
 }
 
 // Update implements View
-func (s *healthView) Update(events []*pbsubscribe.Event) error {
+func (s *HealthView) Update(events []*pbsubscribe.Event) error {
 	for _, event := range events {
 		serviceHealth := event.GetServiceHealth()
 		if serviceHealth == nil {
@@ -80,6 +88,13 @@ func (s *healthView) Update(events []*pbsubscribe.Event) error {
 			if csn == nil {
 				return errors.New("check service node was unexpectedly nil")
 			}
+
+			// check if we intentionally need to skip the filter
+			if s.skipFilter(csn) {
+				s.state[id] = *csn
+				continue
+			}
+
 			passed, err := s.filter.Evaluate(*csn)
 			if err != nil {
 				return err
@@ -94,6 +109,11 @@ func (s *healthView) Update(events []*pbsubscribe.Event) error {
 		}
 	}
 	return nil
+}
+
+func (s *HealthView) skipFilter(csn *structs.CheckServiceNode) bool {
+	// we only do this for connect-enabled services that need to be routed through a terminating gateway
+	return s.kind == "" && s.connect && csn.Service.Kind == structs.ServiceKindTerminatingGateway
 }
 
 type filterEvaluator interface {
@@ -177,7 +197,7 @@ func sortCheckServiceNodes(serviceNodes *structs.IndexedCheckServiceNodes) {
 }
 
 // Result returns the structs.IndexedCheckServiceNodes stored by this view.
-func (s *healthView) Result(index uint64) interface{} {
+func (s *HealthView) Result(index uint64) interface{} {
 	result := structs.IndexedCheckServiceNodes{
 		Nodes: make(structs.CheckServiceNodes, 0, len(s.state)),
 		QueryMeta: structs.QueryMeta{
@@ -193,7 +213,7 @@ func (s *healthView) Result(index uint64) interface{} {
 	return &result
 }
 
-func (s *healthView) Reset() {
+func (s *HealthView) Reset() {
 	s.state = make(map[string]structs.CheckServiceNode)
 }
 

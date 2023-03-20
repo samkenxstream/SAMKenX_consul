@@ -14,9 +14,14 @@ const (
 	// writes.
 	PeeringStateUndefined PeeringState = "UNDEFINED"
 
-	// PeeringStateInitial means a Peering has been initialized and is awaiting
-	// acknowledgement from a remote peer.
-	PeeringStateInitial PeeringState = "INITIAL"
+	// PeeringStatePending means the peering was created by generating a peering token.
+	// Peerings stay in a pending state until the peer uses the token to dial
+	// the local cluster.
+	PeeringStatePending PeeringState = "PENDING"
+
+	// PeeringStateEstablishing means the peering is being established from a peering token.
+	// This is the initial state for dialing peers.
+	PeeringStateEstablishing PeeringState = "ESTABLISHING"
 
 	// PeeringStateActive means that the peering connection is active and
 	// healthy.
@@ -26,9 +31,30 @@ const (
 	// but has not yet been terminated.
 	PeeringStateFailing PeeringState = "FAILING"
 
+	// PeeringStateDeleting means a peering was marked for deletion and is in the process
+	// of being deleted.
+	PeeringStateDeleting PeeringState = "DELETING"
+
 	// PeeringStateTerminated means the peering relationship has been removed.
 	PeeringStateTerminated PeeringState = "TERMINATED"
 )
+
+type PeeringRemoteInfo struct {
+	// Partition is the remote peer's partition.
+	Partition string
+	// Datacenter is the remote peer's datacenter.
+	Datacenter string
+	Locality   *Locality
+}
+
+// Locality identifies where a given entity is running.
+type Locality struct {
+	// Region is region the zone belongs to.
+	Region string
+
+	// Zone is the zone the entity is running in.
+	Zone string
+}
 
 type Peering struct {
 	// ID is a datacenter-scoped UUID for the peering.
@@ -53,10 +79,27 @@ type Peering struct {
 	PeerServerName string `json:",omitempty"`
 	// PeerServerAddresses contains all the connection addresses for the remote peer.
 	PeerServerAddresses []string `json:",omitempty"`
+	// StreamStatus contains information computed on read based on the state of the stream.
+	StreamStatus PeeringStreamStatus
 	// CreateIndex is the Raft index at which the Peering was created.
 	CreateIndex uint64
-	// ModifyIndex is the latest Raft index at which the Peering. was modified.
+	// ModifyIndex is the latest Raft index at which the Peering was modified.
 	ModifyIndex uint64
+	// Remote contains metadata for the remote peer.
+	Remote PeeringRemoteInfo
+}
+
+type PeeringStreamStatus struct {
+	// ImportedServices is the list of services imported from this peering.
+	ImportedServices []string
+	// ExportedServices is the list of services exported to this peering.
+	ExportedServices []string
+	// LastHeartbeat represents when the last heartbeat message was received.
+	LastHeartbeat *time.Time
+	// LastReceive represents when any message was last received, regardless of success or error.
+	LastReceive *time.Time
+	// LastSend represents when any message was last sent, regardless of success or error.
+	LastSend *time.Time
 }
 
 type PeeringReadResponse struct {
@@ -67,11 +110,13 @@ type PeeringGenerateTokenRequest struct {
 	// PeerName is the name of the remote peer.
 	PeerName string
 	// Partition to be peered.
-	Partition  string `json:",omitempty"`
-	Datacenter string `json:",omitempty"`
-	Token      string `json:",omitempty"`
+	Partition string `json:",omitempty"`
 	// Meta is a mapping of some string value to any other string value
 	Meta map[string]string `json:",omitempty"`
+	// ServerExternalAddresses is a list of addresses to put into the generated token. This could be used to specify
+	// load balancer(s) or external IPs to reach the servers from the dialing side, and will override any server
+	// addresses obtained from the "consul" service.
+	ServerExternalAddresses []string `json:",omitempty"`
 }
 
 type PeeringGenerateTokenResponse struct {
@@ -85,8 +130,8 @@ type PeeringEstablishRequest struct {
 	PeerName string
 	// The peering token returned from the peer's GenerateToken endpoint.
 	PeeringToken string `json:",omitempty"`
-	Datacenter   string `json:",omitempty"`
-	Token        string `json:",omitempty"`
+	// Partition to be peered.
+	Partition string `json:",omitempty"`
 	// Meta is a mapping of some string value to any other string value
 	Meta map[string]string `json:",omitempty"`
 }

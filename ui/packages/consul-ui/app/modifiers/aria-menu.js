@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Modifier from 'ember-modifier';
 import { inject as service } from '@ember/service';
 import { action } from '@ember/object';
@@ -45,7 +50,7 @@ export default class AriaMenuModifier extends Modifier {
       return;
     }
     const $items = [...this.element.querySelectorAll(MENU_ITEMS)];
-    const pos = $items.findIndex($item => $item === this.doc.activeElement);
+    const pos = $items.findIndex(($item) => $item === this.doc.activeElement);
     if (e.keyCode === TAB) {
       if (e.shiftKey) {
         if (pos === 0) {
@@ -54,7 +59,7 @@ export default class AriaMenuModifier extends Modifier {
         }
       } else {
         if (pos === $items.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 0));
+          await new Promise((resolve) => setTimeout(resolve, 0));
           this.options.onclose(e);
         }
       }

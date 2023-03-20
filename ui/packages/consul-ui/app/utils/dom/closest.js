@@ -1,4 +1,9 @@
-export default function(sel, el) {
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+export default function (sel, el) {
   // basic DOM closest utility to cope with no support
   // TODO: instead of degrading gracefully
   // add a while polyfill for closest

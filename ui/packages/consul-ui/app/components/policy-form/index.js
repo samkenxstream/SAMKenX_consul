@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import FormComponent from '../form-component/index';
 import { get, set } from '@ember/object';
 
@@ -8,7 +13,7 @@ export default FormComponent.extend({
   classNames: ['policy-form'],
 
   isScoped: false,
-  init: function() {
+  init: function () {
     this._super(...arguments);
     set(this, 'isScoped', get(this, 'item.Datacenters.length') > 0);
     this.templates = [
@@ -27,7 +32,7 @@ export default FormComponent.extend({
     ];
   },
   actions: {
-    change: function(e) {
+    change: function (e) {
       try {
         this._super(...arguments);
       } catch (err) {

@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Fragment from 'ember-data-model-fragments/fragment';
 import { attr } from '@ember-data/model';
 import { computed } from '@ember/object';
@@ -26,6 +31,6 @@ export default class IntentionPermission extends Fragment {
 
   @computed(...schema.HeaderType.allowedValues)
   get HeaderType() {
-    return schema.HeaderType.allowedValues.find(prop => typeof this[prop] !== 'undefined');
+    return schema.HeaderType.allowedValues.find((prop) => typeof this[prop] !== 'undefined');
   }
 }

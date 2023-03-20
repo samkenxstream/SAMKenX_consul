@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import { inject as service } from '@ember/service';
 import RepositoryService from 'consul-ui/services/repository';
 import { getOwner } from '@ember/application';
@@ -82,7 +87,7 @@ export default class OidcProviderService extends RepositoryService {
   findCodeByURL(src) {
     // TODO: Maybe move this to the provider itself
     set(this.provider, 'baseUrl', src);
-    return this.manager.open(OAUTH_PROVIDER_NAME, {}).catch(e => {
+    return this.manager.open(OAUTH_PROVIDER_NAME, {}).catch((e) => {
       let err;
       switch (true) {
         case e.message.startsWith('remote was closed'):

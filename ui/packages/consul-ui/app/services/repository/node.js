@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import RepositoryService from 'consul-ui/services/repository';
 import dataSource from 'consul-ui/decorators/data-source';
 
@@ -12,7 +17,7 @@ export default class NodeService extends RepositoryService {
     return super.findAllByDatacenter(...arguments);
   }
 
-  @dataSource('/:partition/:ns/:dc/node/:id')
+  @dataSource('/:partition/:ns/:dc/node/:id/:peer')
   async findBySlug() {
     return super.findBySlug(...arguments);
   }

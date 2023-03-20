@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/consul/agent/cache"
-	"github.com/hashicorp/consul/proto/pbpeering"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/hashicorp/consul/agent/cache"
+	"github.com/hashicorp/consul/proto/private/pbpeering"
 )
 
 func TestTrustBundle(t *testing.T) {
@@ -33,8 +34,10 @@ func TestTrustBundle(t *testing.T) {
 		Return(resp, nil)
 
 	// Fetch and assert against the result.
-	result, err := typ.Fetch(cache.FetchOptions{}, &pbpeering.TrustBundleReadRequest{
-		Name: "foo",
+	result, err := typ.Fetch(cache.FetchOptions{}, &TrustBundleReadRequest{
+		Request: &pbpeering.TrustBundleReadRequest{
+			Name: "foo",
+		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, cache.FetchResult{
@@ -82,18 +85,21 @@ func TestTrustBundle_MultipleUpdates(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 
-	err := c.Notify(ctx, TrustBundleReadName, &pbpeering.TrustBundleReadRequest{Name: "foo"}, "updates", ch)
+	err := c.Notify(ctx, TrustBundleReadName, &TrustBundleReadRequest{
+		Request: &pbpeering.TrustBundleReadRequest{Name: "foo"},
+	}, "updates", ch)
 	require.NoError(t, err)
 
 	i := uint64(1)
 	for {
 		select {
 		case <-ctx.Done():
+			t.Fatal("context deadline exceeded")
 			return
 		case update := <-ch:
 			// Expect to receive updates for increasing indexes serially.
-			resp := update.Result.(*pbpeering.TrustBundleReadResponse)
-			require.Equal(t, i, resp.Index)
+			actual := update.Result.(*pbpeering.TrustBundleReadResponse)
+			require.Equal(t, i, actual.Index)
 			i++
 
 			if i > 3 {

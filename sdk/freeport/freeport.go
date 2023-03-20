@@ -76,6 +76,9 @@ var (
 	// total is the total number of available ports in the block for use.
 	total int
 
+	// seededRand is a random generator that is pre-seeded from the current time.
+	seededRand *rand.Rand
+
 	// stopCh is used to signal to background goroutines to terminate. Only
 	// really exists for the safety of reset() during unit tests.
 	stopCh chan struct{}
@@ -83,6 +86,10 @@ var (
 	// stopWg is used to keep track of background goroutines that are still
 	// alive. Only really exists for the safety of reset() during unit tests.
 	stopWg sync.WaitGroup
+
+	// portLastUser associates ports with a test name in order to debug
+	// which test may be leaking unclosed TCP connections.
+	portLastUser map[int]string
 )
 
 // initialize is used to initialize freeport.
@@ -110,7 +117,7 @@ func initialize() {
 		panic("freeport: block size too big or too many blocks requested")
 	}
 
-	rand.Seed(time.Now().UnixNano())
+	seededRand = rand.New(rand.NewSource(time.Now().UnixNano())) // This is compatible with go 1.19 but unnecessary in >= go1.20
 	firstPort, lockLn = alloc()
 
 	condNotEmpty = sync.NewCond(&mu)
@@ -127,6 +134,8 @@ func initialize() {
 
 	stopWg.Add(1)
 	stopCh = make(chan struct{})
+
+	portLastUser = make(map[int]string)
 	// Note: we pass this param explicitly to the goroutine so that we can
 	// freely recreate the underlying stop channel during reset() after closing
 	// the original.
@@ -166,6 +175,7 @@ func reset() {
 
 	freePorts = nil
 	pendingPorts = nil
+	portLastUser = nil
 	total = 0
 }
 
@@ -195,6 +205,8 @@ func checkFreedPortsOnce() {
 		if used := isPortInUse(port); !used {
 			freePorts.PushBack(port)
 			remove = append(remove, elem)
+		} else {
+			logf("WARN", "port %d still being used by %q", port, portLastUser[port])
 		}
 	}
 
@@ -247,7 +259,7 @@ func adjustMaxBlocks() (int, error) {
 // be automatically released when the application terminates.
 func alloc() (int, net.Listener) {
 	for i := 0; i < attempts; i++ {
-		block := int(rand.Int31n(int32(effectiveMaxBlocks)))
+		block := int(seededRand.Int31n(int32(effectiveMaxBlocks)))
 		firstPort := lowPort + block*blockSize
 		ln, err := net.ListenTCP("tcp", tcpAddr("127.0.0.1", firstPort))
 		if err != nil {
@@ -314,7 +326,6 @@ func Take(n int) (ports []int, err error) {
 		ports = append(ports, port)
 	}
 
-	// logf("DEBUG", "free ports: %v", ports)
 	return ports, nil
 }
 
@@ -400,9 +411,10 @@ func logf(severity string, format string, a ...interface{}) {
 // In the future new methods may be added to this interface, but those methods
 // should always be implemented by *testing.T
 type TestingT interface {
+	Cleanup(func())
 	Helper()
 	Fatalf(format string, args ...interface{})
-	Cleanup(func())
+	Name() string
 }
 
 // GetN returns n free ports from the reserved port block, and returns the
@@ -413,8 +425,15 @@ func GetN(t TestingT, n int) []int {
 	if err != nil {
 		t.Fatalf("failed to take %v ports: %w", n, err)
 	}
+	logf("DEBUG", "Test %q took ports %v", t.Name(), ports)
+	mu.Lock()
+	for _, p := range ports {
+		portLastUser[p] = t.Name()
+	}
+	mu.Unlock()
 	t.Cleanup(func() {
 		Return(ports)
+		logf("DEBUG", "Test %q returned ports %v", t.Name(), ports)
 	})
 	return ports
 }

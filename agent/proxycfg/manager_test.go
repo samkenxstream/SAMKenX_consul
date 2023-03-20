@@ -4,16 +4,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mitchellh/copystructure"
 	"github.com/stretchr/testify/require"
 
 	"github.com/hashicorp/consul/acl"
 	cachetype "github.com/hashicorp/consul/agent/cache-types"
 	"github.com/hashicorp/consul/agent/connect"
 	"github.com/hashicorp/consul/agent/consul/discoverychain"
+	"github.com/hashicorp/consul/agent/proxycfg/internal/watch"
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/api"
-	"github.com/hashicorp/consul/proto/pbpeering"
+	"github.com/hashicorp/consul/proto/private/pbpeering"
 	"github.com/hashicorp/consul/sdk/testutil"
 )
 
@@ -128,19 +128,11 @@ func TestManager_BasicLifecycle(t *testing.T) {
 		Service:    "web",
 	}
 
-	intentionReq := &structs.IntentionQueryRequest{
-		Datacenter:   "dc1",
-		QueryOptions: structs.QueryOptions{Token: "my-token"},
-		Match: &structs.IntentionQueryMatch{
-			Type: structs.IntentionMatchDestination,
-			Entries: []structs.IntentionMatchEntry{
-				{
-					Namespace: structs.IntentionDefaultNamespace,
-					Partition: structs.IntentionDefaultNamespace,
-					Name:      "web",
-				},
-			},
-		},
+	intentionReq := &structs.ServiceSpecificRequest{
+		Datacenter:     "dc1",
+		QueryOptions:   structs.QueryOptions{Token: "my-token"},
+		EnterpriseMeta: *acl.DefaultEnterpriseMeta(),
+		ServiceName:    "web",
 	}
 
 	meshConfigReq := &structs.ConfigEntryQuery{
@@ -231,6 +223,7 @@ func TestManager_BasicLifecycle(t *testing.T) {
 						WatchedGatewayEndpoints: map[UpstreamID]map[string]structs.CheckServiceNodes{
 							dbUID: {},
 						},
+						WatchedLocalGWEndpoints: watch.NewMap[string, structs.CheckServiceNodes](),
 						UpstreamConfig: map[UpstreamID]*structs.Upstream{
 							NewUpstreamID(&upstreams[0]): &upstreams[0],
 							NewUpstreamID(&upstreams[1]): &upstreams[1],
@@ -238,13 +231,15 @@ func TestManager_BasicLifecycle(t *testing.T) {
 						},
 						PassthroughUpstreams:              map[UpstreamID]map[string]map[string]struct{}{},
 						PassthroughIndices:                map[string]indexedTarget{},
-						PeerTrustBundles:                  map[string]*pbpeering.PeeringTrustBundle{},
-						PeerUpstreamEndpoints:             map[UpstreamID]structs.CheckServiceNodes{},
+						UpstreamPeerTrustBundles:          watch.NewMap[PeerName, *pbpeering.PeeringTrustBundle](),
+						PeerUpstreamEndpoints:             watch.NewMap[UpstreamID, structs.CheckServiceNodes](),
 						PeerUpstreamEndpointsUseHostnames: map[UpstreamID]struct{}{},
 					},
 					PreparedQueryEndpoints: map[UpstreamID]structs.CheckServiceNodes{},
+					DestinationsUpstream:   watch.NewMap[UpstreamID, *structs.ServiceConfigEntry](),
+					DestinationGateways:    watch.NewMap[UpstreamID, structs.CheckServiceNodes](),
 					WatchedServiceChecks:   map[structs.ServiceID][]structs.CheckType{},
-					Intentions:             TestIntentions().Matches[0],
+					Intentions:             TestIntentions(),
 					IntentionsSet:          true,
 				},
 				Datacenter: "dc1",
@@ -292,6 +287,7 @@ func TestManager_BasicLifecycle(t *testing.T) {
 						WatchedGatewayEndpoints: map[UpstreamID]map[string]structs.CheckServiceNodes{
 							dbUID: {},
 						},
+						WatchedLocalGWEndpoints: watch.NewMap[string, structs.CheckServiceNodes](),
 						UpstreamConfig: map[UpstreamID]*structs.Upstream{
 							NewUpstreamID(&upstreams[0]): &upstreams[0],
 							NewUpstreamID(&upstreams[1]): &upstreams[1],
@@ -299,13 +295,15 @@ func TestManager_BasicLifecycle(t *testing.T) {
 						},
 						PassthroughUpstreams:              map[UpstreamID]map[string]map[string]struct{}{},
 						PassthroughIndices:                map[string]indexedTarget{},
-						PeerTrustBundles:                  map[string]*pbpeering.PeeringTrustBundle{},
-						PeerUpstreamEndpoints:             map[UpstreamID]structs.CheckServiceNodes{},
+						UpstreamPeerTrustBundles:          watch.NewMap[PeerName, *pbpeering.PeeringTrustBundle](),
+						PeerUpstreamEndpoints:             watch.NewMap[UpstreamID, structs.CheckServiceNodes](),
 						PeerUpstreamEndpointsUseHostnames: map[UpstreamID]struct{}{},
 					},
 					PreparedQueryEndpoints: map[UpstreamID]structs.CheckServiceNodes{},
+					DestinationsUpstream:   watch.NewMap[UpstreamID, *structs.ServiceConfigEntry](),
+					DestinationGateways:    watch.NewMap[UpstreamID, structs.CheckServiceNodes](),
 					WatchedServiceChecks:   map[structs.ServiceID][]structs.CheckType{},
-					Intentions:             TestIntentions().Matches[0],
+					Intentions:             TestIntentions(),
 					IntentionsSet:          true,
 				},
 				Datacenter: "dc1",
@@ -327,17 +325,14 @@ func TestManager_BasicLifecycle(t *testing.T) {
 			dataSources.ConfigEntry.Set(meshConfigReq, &structs.ConfigEntryResponse{Entry: nil})
 			tt.setup(t, dataSources)
 
-			expectSnapCopy, err := tt.expectSnap.Clone()
-			require.NoError(t, err)
-
-			webProxyCopy, err := copystructure.Copy(webProxy)
-			require.NoError(t, err)
+			expectSnapCopy := tt.expectSnap.Clone()
+			webProxyCopy := webProxy.DeepCopy()
 
 			testManager_BasicLifecycle(t,
 				dataSources,
 				rootsReq, leafReq,
 				roots,
-				webProxyCopy.(*structs.NodeService),
+				webProxyCopy,
 				expectSnapCopy,
 			)
 		})
@@ -640,7 +635,7 @@ func TestManager_SyncState_No_Notify(t *testing.T) {
 	// update the intentions
 	notifyCH <- UpdateEvent{
 		CorrelationID: intentionsWatchID,
-		Result:        &structs.IndexedIntentionMatches{},
+		Result:        structs.Intentions{},
 		Err:           nil,
 	}
 

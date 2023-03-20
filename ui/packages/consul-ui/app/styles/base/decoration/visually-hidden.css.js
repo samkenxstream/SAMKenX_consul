@@ -1,5 +1,10 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 export default (css) => {
-/*%visually-hidden {*/
+  /*%visually-hidden {*/
   return css`
     @keyframes visually-hidden {
       100% {
@@ -14,5 +19,5 @@ export default (css) => {
       }
     }
   `;
-/*}*/
-}
+  /*}*/
+};

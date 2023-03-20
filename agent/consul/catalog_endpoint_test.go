@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/consul-net-rpc/net/rpc"
 
 	"github.com/hashicorp/consul/acl"
+	"github.com/hashicorp/consul/acl/resolver"
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/lib"
@@ -1522,6 +1523,45 @@ func TestCatalog_ListServices_NodeMetaFilter(t *testing.T) {
 	}
 }
 
+func TestCatalog_ListServices_Filter(t *testing.T) {
+	t.Parallel()
+	_, s1 := testServer(t)
+	codec := rpcClient(t, s1)
+
+	testrpc.WaitForTestAgent(t, s1.RPC, "dc1")
+
+	// prep the cluster with some data we can use in our filters
+	registerTestCatalogEntries(t, codec)
+
+	// Run the tests against the test server
+
+	t.Run("ListServices", func(t *testing.T) {
+		args := structs.DCSpecificRequest{
+			Datacenter: "dc1",
+		}
+
+		args.Filter = "ServiceName == redis"
+		out := new(structs.IndexedServices)
+		require.NoError(t, msgpackrpc.CallWithCodec(codec, "Catalog.ListServices", &args, out))
+		require.Contains(t, out.Services, "redis")
+		require.ElementsMatch(t, []string{"v1", "v2"}, out.Services["redis"])
+
+		args.Filter = "NodeMeta.os == NoSuchOS"
+		out = new(structs.IndexedServices)
+		require.NoError(t, msgpackrpc.CallWithCodec(codec, "Catalog.ListServices", &args, out))
+		require.Len(t, out.Services, 0)
+
+		args.Filter = "NodeMeta.NoSuchMetadata == linux"
+		out = new(structs.IndexedServices)
+		require.NoError(t, msgpackrpc.CallWithCodec(codec, "Catalog.ListServices", &args, out))
+		require.Len(t, out.Services, 0)
+
+		args.Filter = "InvalidField == linux"
+		out = new(structs.IndexedServices)
+		require.Error(t, msgpackrpc.CallWithCodec(codec, "Catalog.ListServices", &args, out))
+	})
+}
+
 func TestCatalog_ListServices_Blocking(t *testing.T) {
 	if testing.Short() {
 		t.Skip("too slow for testing.Short")
@@ -1650,7 +1690,6 @@ func TestCatalog_ListServices_Stale(t *testing.T) {
 		c.PrimaryDatacenter = "dc1" // Enable ACLs!
 		c.ACLsEnabled = true
 		c.Bootstrap = false // Disable bootstrap
-		c.RPCHoldTimeout = 10 * time.Millisecond
 	})
 	defer os.RemoveAll(dir2)
 	defer s2.Shutdown()
@@ -2764,6 +2803,104 @@ node_prefix "" {
 	return
 }
 
+// TestCatalog_Register_DenyPeeringRegistration makes sure that users cannot send structs.RegisterRequest
+// with a PeerName in any part of the request.
+func TestCatalog_Register_DenyPeeringRegistration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("too slow for testing.Short")
+	}
+
+	t.Parallel()
+	_, s := testServerWithConfig(t)
+	codec := rpcClient(t, s)
+
+	// we will add PeerName to copies of arg
+	arg := structs.RegisterRequest{
+		Datacenter: "dc1",
+		Node:       "foo",
+		Address:    "127.0.0.1",
+		Service: &structs.NodeService{
+			Service: "db",
+			Tags:    []string{"primary"},
+			Port:    8000,
+		},
+		Check: &structs.HealthCheck{
+			CheckID:   types.CheckID("db-check"),
+			ServiceID: "db",
+		},
+		Checks: structs.HealthChecks{
+			&structs.HealthCheck{
+				CheckID:   types.CheckID("db-check"),
+				ServiceID: "db",
+			},
+		},
+	}
+
+	type testcase struct {
+		name      string
+		reqCopyFn func(arg *structs.RegisterRequest) structs.RegisterRequest
+	}
+
+	testCases := []testcase{
+		{
+			name: "peer name on top level",
+			reqCopyFn: func(arg *structs.RegisterRequest) structs.RegisterRequest {
+				copyR := *arg
+				copyR.PeerName = "foo"
+				return copyR
+			},
+		},
+		{
+			name: "peer name in service",
+			reqCopyFn: func(arg *structs.RegisterRequest) structs.RegisterRequest {
+				copyR := *arg
+				copyR.Service.PeerName = "foo"
+				return copyR
+			},
+		},
+		{
+			name: "peer name in check",
+			reqCopyFn: func(arg *structs.RegisterRequest) structs.RegisterRequest {
+				copyR := *arg
+				copyR.Check.PeerName = "foo"
+				return copyR
+			},
+		},
+		{
+			name: "peer name in checks",
+			reqCopyFn: func(arg *structs.RegisterRequest) structs.RegisterRequest {
+				copyR := *arg
+				copyR.Checks[0].PeerName = "foo"
+				return copyR
+			},
+		},
+		{
+			name: "peer name everywhere",
+			reqCopyFn: func(arg *structs.RegisterRequest) structs.RegisterRequest {
+				copyR := *arg
+
+				copyR.PeerName = "foo1"
+				copyR.Service.PeerName = "foo2"
+				copyR.Check.PeerName = "foo3"
+				copyR.Checks[0].PeerName = "foo4"
+				return copyR
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := tc.reqCopyFn(&arg)
+
+			var out struct{}
+			err := msgpackrpc.CallWithCodec(codec, "Catalog.Register", &req, &out)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "cannot register requests with PeerName in them")
+		})
+	}
+
+}
+
 func TestCatalog_ListServices_FilterACL(t *testing.T) {
 	if testing.Short() {
 		t.Skip("too slow for testing.Short")
@@ -3451,7 +3588,7 @@ service "gateway" {
 
 func TestVetRegisterWithACL(t *testing.T) {
 	appendAuthz := func(t *testing.T, defaultAuthz acl.Authorizer, rules string) acl.Authorizer {
-		policy, err := acl.NewPolicyFromSource(rules, acl.SyntaxCurrent, nil, nil)
+		policy, err := acl.NewPolicyFromSource(rules, nil, nil)
 		require.NoError(t, err)
 
 		authz, err := acl.NewPolicyAuthorizerWithDefaults(defaultAuthz, []*acl.Policy{policy}, nil)
@@ -3467,11 +3604,11 @@ func TestVetRegisterWithACL(t *testing.T) {
 		}
 
 		// With an "allow all" authorizer the update should be allowed.
-		require.NoError(t, vetRegisterWithACL(ACLResolveResult{Authorizer: acl.ManageAll()}, args, nil))
+		require.NoError(t, vetRegisterWithACL(resolver.Result{Authorizer: acl.ManageAll()}, args, nil))
 	})
 
 	var perms acl.Authorizer = acl.DenyAll()
-	var resolvedPerms ACLResolveResult
+	var resolvedPerms resolver.Result
 
 	args := &structs.RegisterRequest{
 		Node:    "nope",
@@ -3483,7 +3620,7 @@ func TestVetRegisterWithACL(t *testing.T) {
 	node "node" {
 	  policy = "write"
 	} `)
-	resolvedPerms = ACLResolveResult{Authorizer: perms}
+	resolvedPerms = resolver.Result{Authorizer: perms}
 
 	// With that policy, the update should now be blocked for node reasons.
 	err := vetRegisterWithACL(resolvedPerms, args, nil)
@@ -3514,7 +3651,7 @@ func TestVetRegisterWithACL(t *testing.T) {
 			ID:      "my-id",
 		},
 	}
-	err = vetRegisterWithACL(ACLResolveResult{Authorizer: perms}, args, ns)
+	err = vetRegisterWithACL(resolver.Result{Authorizer: perms}, args, ns)
 	require.True(t, acl.IsErrPermissionDenied(err))
 
 	// Chain on a basic service policy.
@@ -3522,7 +3659,7 @@ func TestVetRegisterWithACL(t *testing.T) {
 	service "service" {
 	  policy = "write"
 	} `)
-	resolvedPerms = ACLResolveResult{Authorizer: perms}
+	resolvedPerms = resolver.Result{Authorizer: perms}
 
 	// With the service ACL, the update should go through.
 	require.NoError(t, vetRegisterWithACL(resolvedPerms, args, ns))
@@ -3549,7 +3686,7 @@ func TestVetRegisterWithACL(t *testing.T) {
 	service "other" {
 	  policy = "write"
 	} `)
-	resolvedPerms = ACLResolveResult{Authorizer: perms}
+	resolvedPerms = resolver.Result{Authorizer: perms}
 
 	// Now it should go through.
 	require.NoError(t, vetRegisterWithACL(resolvedPerms, args, ns))
@@ -3655,7 +3792,7 @@ func TestVetRegisterWithACL(t *testing.T) {
 	service "other" {
 	  policy = "deny"
 	} `)
-	resolvedPerms = ACLResolveResult{Authorizer: perms}
+	resolvedPerms = resolver.Result{Authorizer: perms}
 
 	// This should get rejected.
 	err = vetRegisterWithACL(resolvedPerms, args, ns)
@@ -3682,7 +3819,7 @@ func TestVetRegisterWithACL(t *testing.T) {
 	node "node" {
 	  policy = "deny"
 	} `)
-	resolvedPerms = ACLResolveResult{Authorizer: perms}
+	resolvedPerms = resolver.Result{Authorizer: perms}
 
 	// This should get rejected because there's a node-level check in here.
 	err = vetRegisterWithACL(resolvedPerms, args, ns)
@@ -3733,16 +3870,16 @@ func TestVetDeregisterWithACL(t *testing.T) {
 	}
 
 	// With an "allow all" authorizer the update should be allowed.
-	if err := vetDeregisterWithACL(ACLResolveResult{Authorizer: acl.ManageAll()}, args, nil, nil); err != nil {
+	if err := vetDeregisterWithACL(resolver.Result{Authorizer: acl.ManageAll()}, args, nil, nil); err != nil {
 		t.Fatalf("err: %v", err)
 	}
 
 	// Create a basic node policy.
 	policy, err := acl.NewPolicyFromSource(`
-node "node" {
-  policy = "write"
-}
-`, acl.SyntaxLegacy, nil, nil)
+    node_prefix "node" {
+      policy = "write"
+    }
+    `, nil, nil)
 	if err != nil {
 		t.Fatalf("err %v", err)
 	}
@@ -3755,7 +3892,7 @@ node "node" {
 	service "my-service" {
 	  policy = "write"
 	}
-	`, acl.SyntaxLegacy, nil, nil)
+	`, nil, nil)
 	if err != nil {
 		t.Fatalf("err %v", err)
 	}
@@ -3966,7 +4103,7 @@ node "node" {
 		},
 	} {
 		t.Run(args.Name, func(t *testing.T) {
-			err = vetDeregisterWithACL(ACLResolveResult{Authorizer: args.Perms}, &args.DeregisterRequest, args.Service, args.Check)
+			err = vetDeregisterWithACL(resolver.Result{Authorizer: args.Perms}, &args.DeregisterRequest, args.Service, args.Check)
 			if !args.Expected {
 				if err == nil {
 					t.Errorf("expected error with %+v", args.DeregisterRequest)

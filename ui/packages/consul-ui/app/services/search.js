@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Service from '@ember/service';
 
 import ExactSearch from 'consul-ui/utils/search/exact';
@@ -15,6 +20,7 @@ import role from 'consul-ui/search/predicates/role';
 import policy from 'consul-ui/search/predicates/policy';
 import authMethod from 'consul-ui/search/predicates/auth-method';
 import nspace from 'consul-ui/search/predicates/nspace';
+import peer from 'consul-ui/search/predicates/peer';
 
 const predicates = {
   intention: intention,
@@ -30,6 +36,7 @@ const predicates = {
   role: role,
   policy: policy,
   nspace: nspace,
+  peer: peer,
 };
 
 export default class SearchService extends Service {

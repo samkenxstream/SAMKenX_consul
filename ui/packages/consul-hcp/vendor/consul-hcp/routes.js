@@ -1,8 +1,11 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 (routes => routes({
   dc: {
-    show: {
-      license: null,
-    },
+    show: null
   },
 }))(
   (json, data = (typeof document !== 'undefined' ? document.currentScript.dataset : module.exports)) => {

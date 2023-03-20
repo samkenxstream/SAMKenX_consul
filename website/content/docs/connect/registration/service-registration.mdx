@@ -1,15 +1,14 @@
 ---
 layout: docs
-page_title: Connect - Service Registration
+page_title: Register a Service Mesh Proxy Outside of a Service Registration
 description: >-
-  A per-service proxy sidecar transparently handles inbound and outbound service
-  connections. You can register these sidecars with reasonable defaults by nesting
-  their definitions in the service definition.
+  You can register a service mesh sidecar proxy separately from the registration of the service instance it fronts. Learn about proxy configuration options and how to format them with examples.
 ---
 
-# Proxy Service Registration
+# Register a Service Mesh Proxy Outside of a Service Registration
 
 This topic describes how to declare a proxy as a `connect-proxy` in service definitions. The `kind` must be declared and information about the service they represent must be provided to function as a Consul service mesh proxy.
+
 
 ## Configuration
 
@@ -35,13 +34,13 @@ port = <port where services can discover and connect to proxied services>
     "destination_service_name": "<name of the service that the proxy represents>",
     "<additional proxy parameters>" : "<additional parameter values>"
   },
-  "port": <port where services can discover and connect to proxied services> 
+  "port": <port where services can discover and connect to proxied services>
 }
 ```
 
 </CodeTabs>
 
-The following table describes the parameters that must be added to the service definition to declare the service as a proxy. 
+The following table describes the parameters that must be added to the service definition to declare the service as a proxy.
 
 | Parameter | Description | Required | Default |
 | ---       | ---         | ---      | ---     |
@@ -82,8 +81,8 @@ proxy = {
 
 ### Sidecar Proxy Configuration
 
-Many service mesh proxies are deployed as sidecars. 
-Sidecar proxies are co-located with the single service instance they represent and proxy all inbound traffic to. 
+Many service mesh proxies are deployed as sidecars.
+Sidecar proxies are co-located with the single service instance they represent and proxy all inbound traffic to.
 
 Specify the following parameters in the `proxy` code block to configure a sidecar proxy in its own service registration:
 
@@ -91,7 +90,7 @@ Specify the following parameters in the `proxy` code block to configure a sideca
 * `local_service_port`: Integer value that specifies the port that the proxy should use to connect to the _local_ service instance. Refer to the [proxy parameters reference](#local-service-port) for details.
 * `local_service_address`: String value that specifies the IP address or hostname that the proxy should use to connect to the _local_ service. Refer to the [proxy parameters reference](#local-service-address) for details.
 
-See (Sidecar Service Registration)[/docs/connect/registration/sidecar-service] for additional information about configuring service mesh proxies as sidecars.
+See [Sidecar Service Registration](/consul/docs/connect/registration/sidecar-service) for additional information about configuring service mesh proxies as sidecars.
 
 ### Complete Configuration Example
 
@@ -99,7 +98,7 @@ The following example includes values for all available options when registering
 
 <CodeTabs heading="Example that includes all configuration options when registering a proxy instance">
 
-```hcl 
+```hcl
 kind = "connect-proxy"
 name = "redis-proxy"
 port = 8181
@@ -115,6 +114,7 @@ proxy = {
   mode = "transparent"
   transparent_proxy = {}
   upstreams = []
+}
 ```
 
 ```json
@@ -166,21 +166,20 @@ You can configure the service mesh proxy to create listeners for upstream servic
 | ---       | ---         | ---      | ---     |
 |`destination_name` | String value that specifies the name of the service or prepared query to route the service mesh to. The prepared query should be the name or the ID of the prepared query. | Required | None |
 | `destination_namespace` | String value that specifies the namespace containing the upstream service. <EnterpriseAlert inline /> | Optional | `default` |
-| `destination_partition` | String value that specifies the name of the admin partition containing the upstream service. | Optional | `default` |
+| `destination_peer` | String value that specifies the name of the peer cluster containing the upstream service. | Optional | None |
+| `destination_partition` | String value that specifies the name of the admin partition containing the upstream service. If `destination_peer` is set, `destination_partition` refers to the local admin partition in which the peering was established. <EnterpriseAlert inline /> | Optional | `default` |
 | `local_bind_port` | Integer value that specifies the port to bind a local listener to. The application will make outbound connections to the upstream from the local port. | Required | None |
 | `local_bind_address` | String value that specifies the address to bind a local listener to. The application will make outbound connections to the upstream service from the local bind address. | Optional | `127.0.0.1` |
 | `local_bind_socket_path` | String value that specifies the path at which to bind a Unix domain socket listener. The application will make outbound connections to the upstream from the local bind socket path. <br/>This parameter conflicts with the `local_bind_port` or `local_bind_address` parameters. <br/>Supported when using Envoy as a proxy. | Optional | None|
 | `local_bind_socket_mode` | String value that specifies a Unix octal that configures file permissions for the socket. | Optional | None |
 | `destination_type` | String value that specifies the type of discovery query the proxy should use for finding service mesh instances. The following values are supported: <li>`service`: Queries for upstream `service` types. </li><li> `prepared_query`: Queries for upstream prepared queries.</li> | Optional | `service` |
 | `datacenter` | String value that specifies the datacenter to issue the discovery query to. | Optional | Defaults to the local datacenter. |
-| `config` | Object value that specifies opaque configuration options that will be provided to the proxy instance for the upstream. <br/>Valid JSON objects are also supported. <br/>The `config` parameter can specify timeouts, retries, and other proxy-specific features for the given upstream. <br/>See the [built-in proxy configuration reference](/docs/connect/proxies/built-in#proxy-upstream-config-key-reference) for configuration options when using the built-in proxy. <br/>If using Envoy as a proxy, see [Envoy configuration reference](/docs/connect/proxies/envoy#proxy-upstream-config-options) | Optional | None |
+| `config` | Object value that specifies opaque configuration options that will be provided to the proxy instance for the upstream. <br/>Valid JSON objects are also supported. <br/>The `config` parameter can specify timeouts, retries, and other proxy-specific features for the given upstream. <br/>See the [built-in proxy configuration reference](/consul/docs/connect/proxies/built-in#proxy-upstream-config-key-reference) for configuration options when using the built-in proxy. <br/>If using Envoy as a proxy, see [Envoy configuration reference](/consul/docs/connect/proxies/envoy#proxy-upstream-config-options) | Optional | None |
 | `mesh_gateway` | Object that defines the mesh gateway configuration for the proxy. Refer to the [Mesh Gateway Configuration Reference](#mesh-gateway-configuration-reference) for configuration details. | Optional | None |
 
 ### Upstream Configuration Examples
 
-Upstreams support multiple destination types. The following examples include information about each implementation.
-
--> **Snake case**: The examples in this topic use `snake_case` because the syntax is supported in configuration files and API registrations. See [Service Definition Parameter Case](/docs/discovery/services#service-definition-parameter-case) for additional information.
+Upstreams support multiple destination types. The following examples include information about each implementation. Note that the examples in this topic use snake case, which is a convention that separates words with underscores, because the format is supported in configuration files and API registrations. 
 
 <CodeTabs heading="Example service destination upstream">
 
@@ -194,7 +193,7 @@ local_bind_socket_path = "/tmp/redis_5678.sock"
 local_bind_socket_mode = "0700"
 mesh_gateway = {
     mode = "local"
-  }
+}
 ```
 
 ```json
@@ -257,6 +256,29 @@ local_bind_port = 9090
 ```
 
 </CodeTabs>
+<CodeTabs heading="Example of dialing remote upstreams across peers">
+
+```hcl
+destination_peer = "cloud-services"
+destination_partition = "finance"
+destination_namespace = "default"
+destination_type = "service"
+destination_name = "api"
+local_bind_port = 9090
+```
+
+```json
+{
+  "destination_peer": "cloud-services",
+  "destination_partition": "finance",
+  "destination_namespace": "default",
+  "destination_type": "service",
+  "destination_name": "api",
+  "local_bind_port": 9090
+}
+```
+
+</CodeTabs>
 
 ## Proxy Modes
 
@@ -265,7 +287,7 @@ You can configure which mode a proxy operates in by specifying `"direct"` or `"t
 * `transparent`: In this mode, inbound and outbound application traffic is captured and redirected through the proxy. This mode does not enable the traffic redirection. It directs Consul to configure Envoy as if traffic is already being redirected.
 * `direct`: In this mode, the proxy's listeners must be dialed directly by the local application and other proxies.
 
-You can also specify an empty string (`""`), which configures the proxy to operate in the default mode. The default mode is inherited from parent parameters in the following order of precedence: 
+You can also specify an empty string (`""`), which configures the proxy to operate in the default mode. The default mode is inherited from parent parameters in the following order of precedence:
 
 1. Proxy service's `Proxy` configuration
 1. The `service-defaults` configuration for the service.
@@ -277,10 +299,7 @@ The proxy will default to `direct` mode if a mode cannot be determined from the 
 
 The following examples show additional configuration for transparent proxies.
 
-Added in v1.10.0.
-
--> Note that `snake_case` is used here as it works in both [config file and API
-registrations](/docs/discovery/services#service-definition-parameter-case).
+Note that the examples in this topic use snake case, which is a convention that separates words with underscores, because the format is supported in configuration files and API registrations.
 
 #### Configure a proxy listener for outbound traffic on port 22500
 
@@ -294,19 +313,18 @@ registrations](/docs/discovery/services#service-definition-parameter-case).
 - `outbound_listener_port` `(int: 15001)` - The port the proxy should listen on for outbound traffic.
    This must be the port where outbound application traffic is captured and redirected to.
 - `dialed_directly` `(bool: false)` - Determines whether this proxy instance's IP address can be dialed
-   directly by transparent proxies. Typically transparent proxies dial upstreams using the "virtual" 
-   tagged address, which load balances across instances. Dialing individual instances can be helpful 
-   in cases like stateful services such as a database cluster with a leader. 
+   directly by transparent proxies. Transparent proxies typically dial upstreams using the "virtual"
+   tagged address, which load balances across instances. A database cluster with a leader is an example
+   where dialing individual instances can be helpful. Cannot be used with upstreams which define a `destination_peer`.
 
   ~> **Note:** Dynamic routing rules such as failovers and redirects do not apply to services dialed directly.
-     Additionally, the connection is proxied using a TCP proxy with a connection timeout of 5 seconds. 
+     Additionally, the connection is proxied using a TCP proxy with a connection timeout of 5 seconds.
 
 ### Mesh Gateway Configuration Reference
 
 The following examples show all possible mesh gateway configurations.
 
--> Note that `snake_case` is used here as it works in both [config file and API
-registrations](/docs/discovery/services#service-definition-parameter-case).
+ Note that the examples in this topic use snake case, which is a convention that separates words with underscores, because the format is supported in configuration files and API registrations.
 
 #### Using a Local/Egress Gateway in the Local Datacenter
 
@@ -362,9 +380,8 @@ The following examples show possible configurations to expose HTTP paths through
 Exposing paths through Envoy enables a service to protect itself by only listening on localhost, while still allowing
 non-Connect-enabled applications to contact an HTTP endpoint.
 Some examples include: exposing a `/metrics` path for Prometheus or `/healthz` for kubelet liveness checks.
-
--> Note that `snake_case` is used here as it works in both [config file and API
-registrations](/docs/discovery/services#service-definition-parameter-case).
+ 
+Note that the examples in this topic use snake case, which is a convention that separates words with underscores, because the format is supported in configuration files and API registrations.
 
 #### Expose listeners in Envoy for HTTP and GRPC checks registered with the local Consul agent
 
@@ -411,8 +428,8 @@ registrations](/docs/discovery/services#service-definition-parameter-case).
 
 - `checks` `(bool: false)` - If enabled, all HTTP and gRPC checks registered with the agent are exposed through Envoy.
   Envoy will expose listeners for these checks and will only accept connections originating from localhost or Consul's
-  [advertise address](/docs/agent/config/config-files#advertise). The port for these listeners are dynamically allocated from
-  [expose_min_port](/docs/agent/config/config-files#expose_min_port) to [expose_max_port](/docs/agent/config/config-files#expose_max_port).
+  [advertise address](/consul/docs/agent/config/config-files#advertise). The port for these listeners are dynamically allocated from
+  [expose_min_port](/consul/docs/agent/config/config-files#expose_min_port) to [expose_max_port](/consul/docs/agent/config/config-files#expose_max_port).
   This flag is useful when a Consul client cannot reach registered services over localhost. One example is when running
   Consul on Kubernetes, and Consul agents run in their own pods.
 - `paths` `array<Path>: []` - A list of paths to expose through Envoy.
@@ -520,7 +537,7 @@ services {
       "proxy": {
         "name": "service-2",
         "local_service_socket_path": "/tmp/socket_service_2"
-    ...
+        ...
       }
     }
   }

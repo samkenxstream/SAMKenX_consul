@@ -17,10 +17,10 @@ import (
 
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/agent/submatview"
-	"github.com/hashicorp/consul/proto/pbcommon"
-	"github.com/hashicorp/consul/proto/pbservice"
-	"github.com/hashicorp/consul/proto/pbsubscribe"
-	"github.com/hashicorp/consul/proto/prototest"
+	"github.com/hashicorp/consul/proto/private/pbcommon"
+	"github.com/hashicorp/consul/proto/private/pbservice"
+	"github.com/hashicorp/consul/proto/private/pbsubscribe"
+	"github.com/hashicorp/consul/proto/private/prototest"
 	"github.com/hashicorp/consul/sdk/testutil"
 	"github.com/hashicorp/consul/types"
 )
@@ -602,14 +602,14 @@ type serviceRequestStub struct {
 }
 
 func (r serviceRequestStub) NewMaterializer() (submatview.Materializer, error) {
-	view, err := newHealthView(r.ServiceSpecificRequest)
+	view, err := NewHealthView(r.ServiceSpecificRequest)
 	if err != nil {
 		return nil, err
 	}
 	deps := submatview.Deps{
 		View:    view,
 		Logger:  hclog.New(nil),
-		Request: newMaterializerRequest(r.ServiceSpecificRequest),
+		Request: NewMaterializerRequest(r.ServiceSpecificRequest),
 	}
 	return submatview.NewRPCMaterializer(r.streamClient, deps), nil
 }
@@ -727,8 +727,8 @@ func getNamespace(ns string) string {
 
 func validateNamespace(ns string) func(request *pbsubscribe.SubscribeRequest) error {
 	return func(request *pbsubscribe.SubscribeRequest) error {
-		if request.Namespace != ns {
-			return fmt.Errorf("expected request.Namespace %v, got %v", ns, request.Namespace)
+		if got := request.GetNamedSubject().GetNamespace(); got != ns {
+			return fmt.Errorf("expected request.NamedSubject.Namespace %v, got %v", ns, got)
 		}
 		return nil
 	}
@@ -940,4 +940,40 @@ func TestNewFilterEvaluator(t *testing.T) {
 			fn(t, tc)
 		})
 	}
+}
+
+func TestHealthView_SkipFilteringTerminatingGateways(t *testing.T) {
+	view, err := NewHealthView(structs.ServiceSpecificRequest{
+		ServiceName: "name",
+		Connect:     true,
+		QueryOptions: structs.QueryOptions{
+			Filter: "Service.Meta.version == \"v1\"",
+		},
+	})
+	require.NoError(t, err)
+
+	err = view.Update([]*pbsubscribe.Event{{
+		Index: 1,
+		Payload: &pbsubscribe.Event_ServiceHealth{
+			ServiceHealth: &pbsubscribe.ServiceHealthUpdate{
+				Op: pbsubscribe.CatalogOp_Register,
+				CheckServiceNode: &pbservice.CheckServiceNode{
+					Service: &pbservice.NodeService{
+						Kind:    structs.TerminatingGateway,
+						Service: "name",
+						Address: "127.0.0.1",
+						Port:    8443,
+					},
+				},
+			},
+		},
+	}})
+	require.NoError(t, err)
+
+	node, ok := (view.Result(1)).(*structs.IndexedCheckServiceNodes)
+	require.True(t, ok)
+
+	require.Len(t, node.Nodes, 1)
+	require.Equal(t, "127.0.0.1", node.Nodes[0].Service.Address)
+	require.Equal(t, 8443, node.Nodes[0].Service.Port)
 }

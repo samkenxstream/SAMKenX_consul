@@ -21,13 +21,16 @@ Feature: dc / services / show / intentions / index: Intentions per service
       DestinationNS: default
       SourcePartition: default
       DestinationPartition: default
+      SourcePeer: ""
 
     - ID: 755b72bd-f5ab-4c92-90cc-bed0e7d8e9f1
       Action: deny
       Meta: ~
+      SourcePeer: ""
     - ID: 0755b72bd-f5ab-4c92-90cc-bed0e7d8e9f2
       Action: deny
       Meta: ~
+      SourcePeer: ""
     ---
     When I visit the service page for yaml
     ---
@@ -35,7 +38,7 @@ Feature: dc / services / show / intentions / index: Intentions per service
       service: service-0
     ---
     And the title should be "service-0 - Consul"
-    And I see intentions on the tabs
+    And I see intentionsIsVisible on the tabs
     When I click intentions on the tabs
     And I see intentionsIsSelected on the tabs
   Scenario: I can see intentions
@@ -45,7 +48,7 @@ Feature: dc / services / show / intentions / index: Intentions per service
   Scenario: I can delete intentions
     And I click actions on the intentionList.intentions component
     And I click delete on the intentionList.intentions component
-    And I click confirmDelete on the intentionList.intentions
+    And I click confirmInlineDelete on the intentionList.intentions
     Then a DELETE request was made to "/v1/connect/intentions/exact?source=default%2Fdefault%2Fname&destination=default%2Fdefault%2Fdestination&dc=dc1"
-    And "[data-notification]" has the "notification-delete" class
-    And "[data-notification]" has the "success" class
+    And "[data-notification]" has the "hds-toast" class
+    And "[data-notification]" has the "hds-alert--color-success" class

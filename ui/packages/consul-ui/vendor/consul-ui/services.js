@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 (services =>
   services({
     'route:basic': {
@@ -13,6 +18,12 @@
       class: 'consul-ui/services/auth-providers/oauth2-code-with-url-provider',
     },
     'component:consul/partition/selector': {
+      class: '@glimmer/component',
+    },
+    'component:consul/peer/selector': {
+      class: '@glimmer/component',
+    },
+    'component:consul/hcp/home': {
       class: '@glimmer/component',
     },
   }))(

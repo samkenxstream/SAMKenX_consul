@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import Component from '@ember/component';
 import Slotted from 'block-slots';
 import { inject as service } from '@ember/service';
@@ -6,10 +11,10 @@ import { alias } from '@ember/object/computed';
 const propRe = /([^[\]])+/g;
 export default Component.extend(Slotted, {
   tagName: '',
-  onreset: function() {},
-  onchange: function() {},
-  onerror: function() {},
-  onsuccess: function() {},
+  onreset: function () {},
+  onchange: function () {},
+  onerror: function () {},
+  onsuccess: function () {},
 
   data: alias('form.data'),
   item: alias('form.data'),
@@ -20,7 +25,7 @@ export default Component.extend(Slotted, {
   container: service('form'),
 
   actions: {
-    change: function(e, value, item) {
+    change: function (e, value, item) {
       let event = this.dom.normalizeEvent(e, value);
       // currently form-components don't deal with deeply nested forms, only top level
       // we therefore grab the end of the nest off here,

@@ -1,4 +1,9 @@
-export default function(visitable, submitable, deletable, cancelable, policySelector, tokenList) {
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+export default function (visitable, submitable, deletable, cancelable, policySelector, tokenList) {
   return {
     visit: visitable(['/:dc/acls/roles/:role', '/:dc/acls/roles/create']),
     ...submitable({}, 'main form > div'),

@@ -166,10 +166,6 @@
             "path": "acl/token/update"
           }
         ]
-      },
-      {
-        "title": "translate-rules",
-        "path": "acl/translate-rules"
       }
     ]
   },
@@ -429,12 +425,45 @@
       {
         "title": "raft",
         "path": "operator/raft"
+      },
+      {
+        "title": "usage",
+        "path": "operator/usage"
       }
     ]
   },
   {
     "title": "partition",
     "path": "partition"
+  },
+  {
+    "title": "peering",
+    "routes": [
+      {
+        "title": "Overview",
+        "path": "peering"
+      },
+      {
+        "title": "delete",
+        "path": "peering/delete"
+      },
+      {
+        "title": "establish",
+        "path": "peering/establish"
+      },
+      {
+        "title": "generate-token",
+        "path": "peering/generate-token"
+      },
+      {
+        "title": "list",
+        "path": "peering/list"
+      },
+      {
+        "title": "read",
+        "path": "peering/read"
+      }
+    ]
   },
   {
     "title": "reload",
@@ -500,6 +529,23 @@
       {
         "title": "cert",
         "path": "tls/cert"
+      }
+    ]
+  },
+  {
+    "title": "troubleshoot",
+    "routes": [
+      {
+        "title": "Overview",
+        "path": "troubleshoot"
+      },
+      {
+        "title": "upstreams",
+        "path": "troubleshoot/upstreams"
+      },
+      {
+        "title": "proxy",
+        "path": "troubleshoot/proxy"
       }
     ]
   },

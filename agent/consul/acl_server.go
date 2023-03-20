@@ -1,6 +1,7 @@
 package consul
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"time"
 
@@ -86,7 +87,7 @@ func (s *Server) checkBindingRuleUUID(id string) (bool, error) {
 }
 
 func (s *Server) InPrimaryDatacenter() bool {
-	return s.config.PrimaryDatacenter == "" || s.config.Datacenter == s.config.PrimaryDatacenter
+	return s.config.InPrimaryDatacenter()
 }
 
 func (s *Server) LocalTokensEnabled() bool {
@@ -106,6 +107,18 @@ func (s *Server) LocalTokensEnabled() bool {
 type serverACLResolverBackend struct {
 	// TODO: un-embed
 	*Server
+}
+
+func (s *serverACLResolverBackend) IsServerManagementToken(token string) bool {
+	mgmt, err := s.getSystemMetadata(structs.ServerManagementTokenAccessorID)
+	if err != nil {
+		s.logger.Debug("failed to fetch server management token: %w", err)
+		return false
+	}
+	if mgmt == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(mgmt), []byte(token)) == 1
 }
 
 func (s *serverACLResolverBackend) ACLDatacenter() string {
@@ -129,15 +142,29 @@ func (s *Server) ResolveIdentityFromToken(token string) (bool, structs.ACLIdenti
 	if !s.InPrimaryDatacenter() && !s.config.ACLTokenReplication {
 		return false, nil, nil
 	}
-
 	index, aclToken, err := s.fsm.State().ACLTokenGetBySecret(nil, token, nil)
 	if err != nil {
 		return true, nil, err
 	} else if aclToken != nil && !aclToken.IsExpired(time.Now()) {
 		return true, aclToken, nil
 	}
+	if aclToken == nil && token == acl.AnonymousTokenSecret {
+		// synthesize the anonymous token for early use, bootstrapping has not completed
+		s.InsertAnonymousToken()
+		fallbackId := structs.ACLToken{
+			AccessorID:  acl.AnonymousTokenID,
+			SecretID:    acl.AnonymousTokenSecret,
+			Description: "synthesized anonymous token",
+		}
+		return true, &fallbackId, nil
+	}
 
-	return s.InPrimaryDatacenter() || index > 0, nil, acl.ErrNotFound
+	defaultErr := acl.ErrNotFound
+	canBootstrap, _, _ := s.fsm.State().CanBootstrapACLToken()
+	if canBootstrap {
+		defaultErr = fmt.Errorf("ACL system must be bootstrapped before making any requests that require authorization: %w", defaultErr)
+	}
+	return s.InPrimaryDatacenter() || index > 0, nil, defaultErr
 }
 
 func (s *serverACLResolverBackend) ResolvePolicyFromID(policyID string) (bool, *structs.ACLPolicy, error) {
